@@ -1,0 +1,179 @@
+
+<!doctype html>
+<html lang="en">
+<head>
+  <script async src="https://www.googletagmanager.com/gtag/js?id=G-T9LVFKB3GD"></script>
+  <script>
+    window.dataLayer = window.dataLayer || [];
+    function gtag(){dataLayer.push(arguments);}
+    gtag('js', new Date());
+    gtag('config', 'G-T9LVFKB3GD');
+  </script>
+  <script async src="https://pagead2.googlesyndication.com/pagead/js/adsbygoogle.js?client=ca-pub-5558664743876366" crossorigin="anonymous"></script>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <link rel="icon" type="image/svg+xml" href="icon.png">
+  <title>Lotta - Meet Strangers & Video Chat Online</title>
+  <meta name="description" content="Lotta is a live video chat platform where you can talk with strangers and meet new people from around the globe. Experience random conversations like never before.">
+  <meta name="robots" content="index, follow">
+  <link rel="canonical" href="https://lotta.lol/">
+  <link rel="stylesheet" href="style.css">
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.7.2/css/all.min.css">
+  <meta property="og:type" content="website">
+  <meta property="og:title" content="Lotta - Meet Strangers & Video Chat Online">
+  <meta property="og:url" content="https://lotta.lol/">
+  <meta property="og:image" content="https://i.ibb.co/DY5TWVq/icon.png">
+  <meta property="og:description" content="Lotta connects you with strangers in real-time through video chat. Meet new people, share experiences, and have random conversations.">
+  <meta name="twitter:card" content="summary_large_image">
+  <meta name="twitter:title" content="Lotta - Meet Strangers & Video Chat Online">
+  <meta name="twitter:description" content="Experience real-time video chat with strangers. Meet new people from around the globe and enjoy random conversations with Lotta.">
+  <meta name="twitter:image" content="https://i.ibb.co/DY5TWVq/icon.png">
+  <script type="application/ld+json">
+    {
+        "@context": "https://schema.org",
+        "@type": "WebSite",
+        "url": "https://lotta.lol/",
+        "name": "Lotta",
+        "description": "Lotta is a live video chat platform to connect you with strangers worldwide for random conversations and fun interactions."
+      }
+  </script>
+  <style>
+    .upi-pay1 {
+      text-decoration: none;
+      color: black;
+      font-weight: bold !important;
+    }
+    .lotte {
+      margin-top: -60px !important;
+    }
+    .visually-hidden {
+      position: absolute;
+      width: 1px;
+      height: 1px;
+      padding: 0;
+      margin: -1px;
+      overflow: hidden;
+      clip: rect(0, 0, 0, 0);
+      border: 0;
+    }
+  </style>
+</head>
+<body>
+  <header>
+    <h1 class="visually-hidden">Lotta - Meet Strangers & Video Chat Online</h1>
+  </header>
+  <video id="background-video" autoplay loop muted>
+    <source src="vid.mp4" type="video/mp4">
+    Your browser does not support the video tag.
+  </video>
+  <div id="tos-popup" class="hidden">
+    <h2>Terms of Use & Privacy Policy</h2>
+    <p>Please read and agree to the <a href="tos">TOS</a> and <a href="pos">Privacy Policy</a> before starting.</p>
+    <textarea id="tos-text" readonly>
+Welcome! Before proceeding, please review our Terms of Service and Privacy Policy. By clicking "Accept" below, you agree to our terms.
+    </textarea>
+    <button class="tosden" onclick="denytos()">Deny</button>
+    <button class="tosacp" id="accept-tos">Accept</button>
+  </div>
+  <div id="age-verification" class="hidden">
+    <h2>Age Verification</h2>
+    <p>You must be 18 years or older to use this service.</p>
+    <button class="ageden" onclick="ageres()">I am not 18</button>
+    <button class="ageok" id="confirm-age" onclick="confirmAge()">I am 18 or older</button>
+  </div>
+  <div id="dark-overlay"></div>
+  <div class="wrapper">
+    <script src="https://unpkg.com/@dotlottie/player-component@latest/dist/dotlottie-player.mjs" type="module"></script>
+    <dotlottie-player src="https://lottie.host/399e15ed-bb16-43e6-87da-2792b55e26ec/gHC2o9PdgO.json" background="transparent" class="lotte" speed="1" style="width: 250px; height: 300px; margin-top: -20px; padding-bottom: 20px;" loop autoplay></dotlottie-player>
+    <img src="iconv2.png" class="log" alt="Lotta Logo">
+    <label id="int" for="interest-input">Enter your interests (separate by commas):</label>
+    <input type="text" id="interest-input" placeholder="e.g. music, art, technology">
+    <button id="video-btn" style="margin-bottom: -10px;" class="clk" onclick="redirect()">Video</button>
+    <button id="chat-btn" class="clk" onclick="redirect2()">Chat</button>
+    <div id="online" class="online-count">🟢 Online: 0</div>
+  </div>
+  <footer id="pc">
+    <nav>
+      <ul>
+        <li><a href="tos.html">Terms of Service</a></li>
+        <li><a href="contact.html">Contact</a></li>
+        <li><a href="pos.html">Privacy Policy</a></li>
+      </ul>
+    </nav>
+  </footer>
+  <footer id="mobile">
+    <nav id="nvv">
+      <ul>
+        <li><a href="tos.html">Terms</a></li>
+        <li><a href="contact.html">Contact</a></li>
+        <li><a href="pos.html">Policy</a></li>
+      </ul>
+    </nav>
+  </footer>
+  <script src="./index.js" type="module"></script>
+  <script src="js/landing.js" type="module"></script>
+  <script>
+    function denytos() {
+      location.href = '/tosdeny.html';
+    }
+    function ageres() {
+      location.href = 'https://www.youtube.com/watch?v=020g-0hhCAU';
+    }
+    let con;
+    function redirect() {
+      con = 0;
+      const tosPopup = document.getElementById('tos-popup');
+      tosPopup.classList.remove('hidden');
+      document.getElementById("video-btn").disabled = true;
+      document.getElementById('accept-tos').addEventListener('click', () => {
+        tosPopup.classList.add('hidden');
+        const ageVerification = document.getElementById('age-verification');
+        ageVerification.classList.remove('hidden');
+      });
+    }
+    function redirect2() {
+      con = 1;
+      const tosPopup = document.getElementById('tos-popup');
+      tosPopup.classList.remove('hidden');
+      document.getElementById("video-btn").disabled = true;
+      document.getElementById('accept-tos').addEventListener('click', () => {
+        tosPopup.classList.add('hidden');
+        const ageVerification = document.getElementById('age-verification');
+        ageVerification.classList.remove('hidden');
+      });
+    }
+    function confirmAge() {
+     
+    const interestInput = document.getElementById('interest-input').value;
+
+ 
+    const selectedInterests = interestInput.split(',')
+                                           .map(interest => interest.trim())
+                                           .filter(interest => interest) 
+                                           .join(','); 
+
+    if (con == 0) {
+
+ location.href = selectedInterests ? `/video?interests=${(selectedInterests)}` : `/video`;
+      } else {
+        location.href = '/chat';
+      }
+    }
+    fetch('https://api.ipify.org?format=json')
+      .then(response => response.json())
+      .then(data => {
+        const userIP = data.ip;
+        return fetch(`${atob("aHR0cHM6Ly9iYWNrZW5kLWxvdHRhLTdnYXAudmVyY2VsLmFwcC9jaGVjay1pcD9pcD0=") + userIP}`);
+      })
+      .then(response => response.json())
+      .then(data => {
+        if (data.banned) {
+          window.location.href = '/banned.html';
+        }
+      })
+      .catch(error => {
+        console.error("IP check failed:", error);
+      });
+  </script>
+</body>
+</html>
