@@ -1,91 +1,269 @@
 <!doctype html>
-<html>
+<html lang="en">
 <head>
-  <meta charset="utf-8"/>
-  <meta name="viewport" content="width=device-width,initial-scale=1"/>
-  <title>Simple Random Video Chat</title>
-  <style>body{font-family:Arial;background:#111;color:#fff;margin:0}header{padding:12px;background:#0b1220}video{width:100%;height:300px;background:#000;object-fit:cover}</style>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>Simple Group Chat</title>
+  <style>
+    :root{--bg:#0b1220;--panel:#0f172a;--muted:#9ca3af;--accent:#06b6d4}
+    body{margin:0;font-family:Inter,system-ui,Arial;background:var(--bg);color:#fff;display:flex;min-height:100vh;align-items:center;justify-content:center;padding:18px}
+    .app{width:100%;max-width:980px;background:linear-gradient(180deg,#071021 0%, #081827 100%);border-radius:12px;box-shadow:0 8px 40px rgba(2,6,23,.6);overflow:hidden;display:grid;grid-template-columns:1fr 340px}
+    header{grid-column:1/-1;padding:14px 18px;border-bottom:1px solid rgba(255,255,255,.04);display:flex;align-items:center;gap:12px}
+    header h1{margin:0;font-size:18px}
+    main{padding:12px;display:flex;flex-direction:column;gap:10px}
+    .messages{flex:1;overflow:auto;padding:12px;border-radius:10px;background:linear-gradient(180deg, rgba(255,255,255,.01), rgba(255,255,255,.00));border:1px solid rgba(255,255,255,.02)}
+    .msg{margin:8px 0;display:flex;gap:10px;align-items:flex-start}
+    .avatar{width:40px;height:40px;border-radius:8px;background:#111;display:flex;align-items:center;justify-content:center;font-weight:700;color:var(--accent);flex-shrink:0}
+    .bub{background:rgba(255,255,255,.03);padding:8px 12px;border-radius:10px;max-width:72%;line-height:1.2}
+    .meta{font-size:12px;color:var(--muted);margin-bottom:6px}
+    .right{flex-direction:row-reverse}
+    .right .bub{background:linear-gradient(90deg,#065f6b,#0891b2);color:#fff}
+    footer{display:flex;gap:8px;padding:12px;border-top:1px solid rgba(255,255,255,.03);align-items:center}
+    input[type="text"], textarea{background:var(--panel);border:1px solid rgba(255,255,255,.03);color:#fff;padding:8px;border-radius:8px;outline:none}
+    .controls{display:flex;flex-direction:column;gap:8px;padding:12px;border-left:1px solid rgba(255,255,255,.03);background:linear-gradient(180deg, rgba(255,255,255,.01), transparent)}
+    .presence{font-size:13px;color:var(--muted);margin-bottom:8px}
+    .user-row{display:flex;gap:8px;align-items:center;margin-bottom:10px}
+    button{background:transparent;border:1px solid rgba(255,255,255,.06);padding:8px 10px;border-radius:8px;color:#fff;cursor:pointer}
+    .send{background:var(--accent);border:none;padding:10px 14px;border-radius:10px}
+    .typing{font-size:13px;color:var(--muted);padding:6px 12px}
+    .small{font-size:12px;color:var(--muted)}
+    .name-edit{display:flex;gap:8px;align-items:center}
+    @media (max-width:900px){ .app{grid-template-columns:1fr; } .controls{order:2} }
+  </style>
 </head>
 <body>
-  <header>
-    <button id="start">Start</button>
-    <button id="next" disabled>Next</button>
-    <span id="status">Idle</span>
-  </header>
+  <div class="app" role="application" aria-label="Group chat">
+    <header>
+      <h1>Group Chat</h1>
+      <div style="margin-left:auto" class="small" id="status">Connecting…</div>
+    </header>
 
-  <main style="padding:12px;display:grid;grid-template-columns:1fr 1fr;gap:12px;">
-    <div><h4>Remote</h4><video id="remote" autoplay playsinline></video></div>
-    <div><h4>Local</h4><video id="local" autoplay playsinline muted></video></div>
-  </main>
+    <main>
+      <div class="messages" id="messages" aria-live="polite"></div>
+      <div class="typing" id="typing"></div>
+      <footer>
+        <input id="text" type="text" placeholder="Say something nice..." style="flex:1" />
+        <button id="send" class="send">Send</button>
+      </footer>
+    </main>
 
-  <script>
-    // EDIT this to your server WSS after you deploy it:
-    const WS = 'wss://vmfm.github.io/tamilrandomchat';
+    <aside class="controls" aria-label="Controls">
+      <div class="presence"><strong>Online</strong> <span id="onlineCount">0</span></div>
 
-    let ws, pc, localStream;
-    const remoteVid = document.getElementById('remote');
-    const localVid = document.getElementById('local');
-    const startBtn = document.getElementById('start');
-    const nextBtn = document.getElementById('next');
-    const status = document.getElementById('status');
+      <div class="user-row">
+        <div class="avatar" id="avatar">U</div>
+        <div style="flex:1">
+          <div class="name-edit">
+            <input id="name" type="text" placeholder="Your name" style="flex:1" />
+            <button id="saveName">Save</button>
+          </div>
+          <div class="small">Anonymous login (no password)</div>
+        </div>
+      </div>
 
-    function setStatus(t){ status.textContent = t; }
+      <div style="margin-top:auto">
+        <button id="clearLocal">Clear chats (local)</button>
+        <div class="small" style="margin-top:14px">Powered by Firebase Realtime Database</div>
+      </div>
+    </aside>
+  </div>
 
-    async function getMedia(){
-      localStream = await navigator.mediaDevices.getUserMedia({video:true,audio:true});
-      localVid.srcObject = localStream;
-    }
+  <!-- Firebase modular SDK (use latest stable if needed) -->
+  <script type="module">
+    // 1) Import required functions
+    import { initializeApp } from "https://www.gstatic.com/firebasejs/9.23.0/firebase-app.js";
+    import { getDatabase, ref, push, onChildAdded, limitToLast, query, serverTimestamp, set, onValue, onDisconnect, remove, onChildRemoved } from "https://www.gstatic.com/firebasejs/9.23.0/firebase-database.js";
+    import { getAuth, signInAnonymously, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/9.23.0/firebase-auth.js";
 
-    function createPeer(){
-      pc = new RTCPeerConnection({iceServers:[{urls:'stun:stun.l.google.com:19302'}]});
-      localStream.getTracks().forEach(t=>pc.addTrack(t, localStream));
-      pc.ontrack = e => remoteVid.srcObject = e.streams[0];
-      pc.onicecandidate = e => { if(e.candidate) ws.send(JSON.stringify({type:'signal', data:{candidate:e.candidate}})); };
-    }
-
-    async function makeOffer(){ await pc.setLocalDescription(await pc.createOffer()); ws.send(JSON.stringify({type:'signal', data:{sdp: pc.localDescription}})); }
-
-    async function handleSignal(data){
-      if(data.sdp){
-        await pc.setRemoteDescription(new RTCSessionDescription(data.sdp));
-        if(data.sdp.type === 'offer'){
-          await pc.setLocalDescription(await pc.createAnswer());
-          ws.send(JSON.stringify({type:'signal', data:{sdp: pc.localDescription}}));
-        }
-      } else if(data.candidate){
-        try{ await pc.addIceCandidate(data.candidate); }catch(e){}
-      }
-    }
-
-    async function connectWS(){
-      ws = new WebSocket(WS);
-      ws.onopen = ()=>{ setStatus('WS open'); ws.send(JSON.stringify({type:'find'})); };
-      ws.onclose = ()=> setStatus('WS closed');
-      ws.onerror = ()=> setStatus('WS error');
-      ws.onmessage = async (ev)=>{
-        const msg = JSON.parse(ev.data);
-        if(msg.type === 'id') document.title = 'ID:'+msg.id;
-        else if(msg.type === 'waiting') setStatus('Waiting for partner...');
-        else if(msg.type === 'paired'){
-          setStatus('Paired with '+msg.partnerId);
-          createPeer();
-          // caller = lower id offers
-          const myId = Number(document.title.split(':')[1]||0);
-          if(myId <= msg.partnerId) await makeOffer();
-          nextBtn.disabled = false;
-        } else if(msg.type === 'signal') await handleSignal(msg.data);
-        else if(msg.type === 'partner-left'){ setStatus('Partner left'); nextBtn.disabled = true; }
-      };
-    }
-
-    startBtn.onclick = async () => {
-      startBtn.disabled = true;
-      setStatus('Getting media...');
-      await getMedia();
-      await connectWS();
+    // --- 2) Replace this config with YOUR Firebase project's config ---
+    // Go to Firebase Console > Project Settings > SDK setup and config
+    const firebaseConfig = {
+      // apiKey: "YOUR_API_KEY",
+      // authDomain: "YOUR_PROJECT.firebaseapp.com",
+      // databaseURL: "https://YOUR_PROJECT.firebaseio.com",
+      // projectId: "YOUR_PROJECT_ID",
+      // storageBucket: "YOUR_PROJECT.appspot.com",
+      // messagingSenderId: "SENDER_ID",
+      // appId: "APP_ID"
     };
 
-    nextBtn.onclick = ()=> { if(ws && ws.readyState===WebSocket.OPEN) ws.send(JSON.stringify({type:'find'})); setStatus('Finding new partner...'); };
+    // Validate config
+    if (!firebaseConfig || !firebaseConfig.apiKey) {
+      document.getElementById('status').textContent = 'Add Firebase config to the file before using';
+      throw new Error('Missing firebaseConfig — replace with your project settings');
+    }
+
+    // 3) Init
+    const app = initializeApp(firebaseConfig);
+    const db = getDatabase(app);
+    const auth = getAuth(app);
+
+    // DOM
+    const messagesEl = document.getElementById('messages');
+    const textEl = document.getElementById('text');
+    const sendBtn = document.getElementById('send');
+    const nameEl = document.getElementById('name');
+    const saveNameBtn = document.getElementById('saveName');
+    const avatarEl = document.getElementById('avatar');
+    const statusEl = document.getElementById('status');
+    const onlineCountEl = document.getElementById('onlineCount');
+    const typingEl = document.getElementById('typing');
+    const clearLocalBtn = document.getElementById('clearLocal');
+
+    // State
+    let me = { uid: null, name: 'Anonymous' };
+    const ROOM = 'global';            // single shared room (changeable)
+    const MESSAGES_PATH = `rooms/${ROOM}/messages`;
+    const PRESENCE_PATH = `rooms/${ROOM}/presence`;
+    const TYPING_PATH = `rooms/${ROOM}/typing`;
+
+    // Helpers
+    function makeAvatar(name) {
+      return (name && name[0]) ? name[0].toUpperCase() : 'U';
+    }
+    function formatTime(ts) {
+      const d = new Date(ts);
+      return d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+    }
+
+    // 4) Sign-in anonymously, set up presence
+    signInAnonymously(auth).catch(err => {
+      statusEl.textContent = 'Auth error: ' + err.message;
+      console.error(err);
+    });
+
+    onAuthStateChanged(auth, user => {
+      if (!user) return;
+      me.uid = user.uid;
+      loadLocalName();
+      statusEl.textContent = 'Connected';
+      setupPresence();
+      listenMessages();
+      listenPresence();
+      listenTyping();
+    });
+
+    // Presence: write presence entry and remove on disconnect
+    function setupPresence(){
+      const pRef = ref(db, `${PRESENCE_PATH}/${me.uid}`);
+      set(pRef, { uid: me.uid, name: me.name, ts: serverTimestamp() });
+      onDisconnect(pRef).remove();
+
+      // Update last-seen timestamp periodically
+      setInterval(() => set(pRef, { uid: me.uid, name: me.name, ts: serverTimestamp() }), 25000);
+    }
+
+    // Listen presence list to show online count & names
+    function listenPresence(){
+      const presRef = ref(db, PRESENCE_PATH);
+      onValue(presRef, snapshot => {
+        const data = snapshot.val() || {};
+        const keys = Object.keys(data);
+        onlineCountEl.textContent = keys.length;
+      });
+      // Remove / re-add on unload is handled by onDisconnect above
+    }
+
+    // Typing indicator: write when user types, clear after idle
+    let typingTimer = null;
+    textEl.addEventListener('input', () => {
+      const tRef = ref(db, `${TYPING_PATH}/${me.uid}`);
+      if (textEl.value.trim()) {
+        set(tRef, { uid: me.uid, name: me.name, ts: serverTimestamp() });
+        onDisconnect(tRef).remove();
+      } else {
+        remove(tRef);
+      }
+      clearTimeout(typingTimer);
+      typingTimer = setTimeout(() => remove(ref(db, `${TYPING_PATH}/${me.uid}`)), 1200);
+    });
+
+    function listenTyping(){
+      const tRef = ref(db, TYPING_PATH);
+      onValue(tRef, snap => {
+        const data = snap.val() || {};
+        const names = Object.values(data).filter(x=>x && x.name && x.uid !== me.uid).map(x=>x.name);
+        typingEl.textContent = names.length ? `${names.join(', ')} typing…` : '';
+      });
+    }
+
+    // 5) Messages: listen last 100, append as they come
+    function listenMessages(){
+      const q = query(ref(db, MESSAGES_PATH), limitToLast(100));
+      onChildAdded(q, (snap) => {
+        const m = snap.val();
+        appendMessage(m);
+      });
+    }
+
+    function appendMessage(m){
+      // Remember last seen message locally (optional)
+      const div = document.createElement('div');
+      div.className = 'msg';
+      if (m.uid === me.uid) div.classList.add('right');
+
+      const av = document.createElement('div');
+      av.className = 'avatar';
+      av.textContent = makeAvatar(m.name);
+
+      const bub = document.createElement('div');
+      bub.className = 'bub';
+      const meta = document.createElement('div');
+      meta.className = 'meta';
+      meta.textContent = `${m.name || 'Anonymous'} • ${formatTime(m.ts || Date.now())}`;
+      bub.appendChild(meta);
+
+      const text = document.createElement('div');
+      text.textContent = m.text;
+      bub.appendChild(text);
+
+      div.appendChild(av);
+      div.appendChild(bub);
+      messagesEl.appendChild(div);
+      messagesEl.scrollTop = messagesEl.scrollHeight;
+    }
+
+    // Sending message
+    sendBtn.addEventListener('click', sendMessage);
+    textEl.addEventListener('keydown', (e) => {
+      if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); sendMessage(); }
+    });
+
+    async function sendMessage(){
+      const txt = textEl.value.trim();
+      if (!txt) return;
+      const mRef = push(ref(db, MESSAGES_PATH));
+      await set(mRef, { uid: me.uid, name: me.name, text: txt, ts: serverTimestamp() });
+      textEl.value = '';
+      remove(ref(db, `${TYPING_PATH}/${me.uid}`));
+    }
+
+    // Name editing + avatar
+    saveNameBtn.addEventListener('click', () => {
+      const n = nameEl.value.trim() || 'Anonymous';
+      me.name = n;
+      avatarEl.textContent = makeAvatar(n);
+      // update presence entry with new name
+      set(ref(db, `${PRESENCE_PATH}/${me.uid}`), { uid: me.uid, name: me.name, ts: serverTimestamp() });
+      localStorage.setItem('chat-name', me.name);
+    });
+
+    function loadLocalName(){
+      const stored = localStorage.getItem('chat-name');
+      if (stored) { me.name = stored; nameEl.value = stored; avatarEl.textContent = makeAvatar(stored); }
+      else { nameEl.value = me.name; avatarEl.textContent = makeAvatar(me.name); }
+    }
+
+    // Clear messages locally (does not delete DB)
+    clearLocalBtn.addEventListener('click', ()=> messagesEl.innerHTML = '');
+
+    // Optional: remove presence when window closed (onDisconnect already covers server-side)
+    window.addEventListener('beforeunload', ()=> { /* browser will fire onDisconnect on Firebase server */ });
+
+    // Safety: observe remote deletion of messages (if admins purge)
+    onChildRemoved(ref(db, MESSAGES_PATH), (snap) => {
+      // Not implemented: could remove message element by id if stored; left simple
+    });
   </script>
 </body>
 </html>
