@@ -1,269 +1,204 @@
 <!doctype html>
-<html lang="en">
+<html>
 <head>
   <meta charset="utf-8" />
+  <title>Random Video Chat (GitHub Pages)</title>
   <meta name="viewport" content="width=device-width,initial-scale=1" />
-  <title>Simple Group Chat</title>
   <style>
-    :root{--bg:#0b1220;--panel:#0f172a;--muted:#9ca3af;--accent:#06b6d4}
-    body{margin:0;font-family:Inter,system-ui,Arial;background:var(--bg);color:#fff;display:flex;min-height:100vh;align-items:center;justify-content:center;padding:18px}
-    .app{width:100%;max-width:980px;background:linear-gradient(180deg,#071021 0%, #081827 100%);border-radius:12px;box-shadow:0 8px 40px rgba(2,6,23,.6);overflow:hidden;display:grid;grid-template-columns:1fr 340px}
-    header{grid-column:1/-1;padding:14px 18px;border-bottom:1px solid rgba(255,255,255,.04);display:flex;align-items:center;gap:12px}
-    header h1{margin:0;font-size:18px}
-    main{padding:12px;display:flex;flex-direction:column;gap:10px}
-    .messages{flex:1;overflow:auto;padding:12px;border-radius:10px;background:linear-gradient(180deg, rgba(255,255,255,.01), rgba(255,255,255,.00));border:1px solid rgba(255,255,255,.02)}
-    .msg{margin:8px 0;display:flex;gap:10px;align-items:flex-start}
-    .avatar{width:40px;height:40px;border-radius:8px;background:#111;display:flex;align-items:center;justify-content:center;font-weight:700;color:var(--accent);flex-shrink:0}
-    .bub{background:rgba(255,255,255,.03);padding:8px 12px;border-radius:10px;max-width:72%;line-height:1.2}
-    .meta{font-size:12px;color:var(--muted);margin-bottom:6px}
-    .right{flex-direction:row-reverse}
-    .right .bub{background:linear-gradient(90deg,#065f6b,#0891b2);color:#fff}
-    footer{display:flex;gap:8px;padding:12px;border-top:1px solid rgba(255,255,255,.03);align-items:center}
-    input[type="text"], textarea{background:var(--panel);border:1px solid rgba(255,255,255,.03);color:#fff;padding:8px;border-radius:8px;outline:none}
-    .controls{display:flex;flex-direction:column;gap:8px;padding:12px;border-left:1px solid rgba(255,255,255,.03);background:linear-gradient(180deg, rgba(255,255,255,.01), transparent)}
-    .presence{font-size:13px;color:var(--muted);margin-bottom:8px}
-    .user-row{display:flex;gap:8px;align-items:center;margin-bottom:10px}
-    button{background:transparent;border:1px solid rgba(255,255,255,.06);padding:8px 10px;border-radius:8px;color:#fff;cursor:pointer}
-    .send{background:var(--accent);border:none;padding:10px 14px;border-radius:10px}
-    .typing{font-size:13px;color:var(--muted);padding:6px 12px}
-    .small{font-size:12px;color:var(--muted)}
-    .name-edit{display:flex;gap:8px;align-items:center}
-    @media (max-width:900px){ .app{grid-template-columns:1fr; } .controls{order:2} }
+    body { font-family: Arial, sans-serif; background:#111; color:#eee; display:flex; flex-direction:column; align-items:center; padding:20px; }
+    video { width:320px; height:240px; background:#000; margin:8px; border-radius:8px; box-shadow:0 2px 8px rgba(0,0,0,0.6); }
+    #controls { margin:12px; display:flex; gap:8px; }
+    button { padding:8px 12px; border-radius:6px; border:none; background:#2d8cff; color:white; cursor:pointer; }
+    button.danger { background:#ff5858; }
+    .status { margin-top:8px; font-size:0.95rem; opacity:0.9; }
   </style>
 </head>
 <body>
-  <div class="app" role="application" aria-label="Group chat">
-    <header>
-      <h1>Group Chat</h1>
-      <div style="margin-left:auto" class="small" id="status">Connecting…</div>
-    </header>
-
-    <main>
-      <div class="messages" id="messages" aria-live="polite"></div>
-      <div class="typing" id="typing"></div>
-      <footer>
-        <input id="text" type="text" placeholder="Say something nice..." style="flex:1" />
-        <button id="send" class="send">Send</button>
-      </footer>
-    </main>
-
-    <aside class="controls" aria-label="Controls">
-      <div class="presence"><strong>Online</strong> <span id="onlineCount">0</span></div>
-
-      <div class="user-row">
-        <div class="avatar" id="avatar">U</div>
-        <div style="flex:1">
-          <div class="name-edit">
-            <input id="name" type="text" placeholder="Your name" style="flex:1" />
-            <button id="saveName">Save</button>
-          </div>
-          <div class="small">Anonymous login (no password)</div>
-        </div>
-      </div>
-
-      <div style="margin-top:auto">
-        <button id="clearLocal">Clear chats (local)</button>
-        <div class="small" style="margin-top:14px">Powered by Firebase Realtime Database</div>
-      </div>
-    </aside>
+  <h2>Random Video Chat</h2>
+  <div>
+    <video id="local" autoplay muted playsinline></video>
+    <video id="remote" autoplay playsinline></video>
   </div>
+  <div id="controls">
+    <button id="startBtn">Start Camera</button>
+    <button id="joinBtn" disabled>Find Random Partner</button>
+    <button id="leaveBtn" class="danger" disabled>Leave</button>
+  </div>
+  <div class="status" id="status">Status: idle</div>
 
-  <!-- Firebase modular SDK (use latest stable if needed) -->
-  <script type="module">
-    // 1) Import required functions
-    import { initializeApp } from "https://www.gstatic.com/firebasejs/9.23.0/firebase-app.js";
-    import { getDatabase, ref, push, onChildAdded, limitToLast, query, serverTimestamp, set, onValue, onDisconnect, remove, onChildRemoved } from "https://www.gstatic.com/firebasejs/9.23.0/firebase-database.js";
-    import { getAuth, signInAnonymously, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/9.23.0/firebase-auth.js";
+<script>
+(async function(){
+  // CONFIG
+  // Replace with your signaling server address (ws:// or wss://)
+  const SIGNAL_SERVER = "wss://YOUR_SIGNAL_SERVER_DOMAIN_OR_IP"; // e.g. wss://example.com
+  // STUN servers
+  const ICE_CONFIG = { iceServers: [
+    { urls: "stun:stun.l.google.com:19302" },
+    // add TURN here if you have one
+  ]};
 
-    // --- 2) Replace this config with YOUR Firebase project's config ---
-    // Go to Firebase Console > Project Settings > SDK setup and config
-    const firebaseConfig = {
-      // apiKey: "YOUR_API_KEY",
-      // authDomain: "YOUR_PROJECT.firebaseapp.com",
-      // databaseURL: "https://YOUR_PROJECT.firebaseio.com",
-      // projectId: "YOUR_PROJECT_ID",
-      // storageBucket: "YOUR_PROJECT.appspot.com",
-      // messagingSenderId: "SENDER_ID",
-      // appId: "APP_ID"
+  // UI
+  const startBtn = document.getElementById('startBtn');
+  const joinBtn  = document.getElementById('joinBtn');
+  const leaveBtn = document.getElementById('leaveBtn');
+  const localV   = document.getElementById('local');
+  const remoteV  = document.getElementById('remote');
+  const statusEl = document.getElementById('status');
+
+  let localStream = null;
+  let pc = null;
+  let ws = null;
+  let paired = false;
+
+  function setStatus(s){ statusEl.textContent = 'Status: ' + s; }
+
+  async function startCamera(){
+    try {
+      localStream = await navigator.mediaDevices.getUserMedia({ video:true, audio:true });
+      localV.srcObject = localStream;
+      startBtn.disabled = true;
+      joinBtn.disabled = false;
+      setStatus('camera ready');
+    } catch (e) {
+      alert('Camera permission denied or no device: ' + e.message);
+      setStatus('camera error');
+    }
+  }
+
+  function connectWS(){
+    if (ws && ws.readyState === WebSocket.OPEN) return;
+    ws = new WebSocket(SIGNAL_SERVER);
+    ws.onopen = ()=> { setStatus('connected to signaling server'); };
+    ws.onclose = ()=> { setStatus('signaling disconnected'); };
+    ws.onerror = (e)=> { console.error('WS err', e); setStatus('signaling error'); };
+    ws.onmessage = async (ev) => {
+      const msg = JSON.parse(ev.data);
+      // types: waiting, paired, signal, peer-left
+      if (msg.type === 'waiting') {
+        setStatus('waiting for partner...');
+      } else if (msg.type === 'paired') {
+        setStatus('paired — starting WebRTC negotiation');
+        startPeer(true); // initiator? We'll decide below
+      } else if (msg.type === 'signal') {
+        await handleSignal(msg.payload);
+      } else if (msg.type === 'peer-left') {
+        setStatus('Peer left');
+        closePeer();
+      }
+    };
+  }
+
+  // Simple heuristic: the client that receives 'paired' and currently has no offer will act as 'caller'
+  // We'll implement a call where the client that initiates the 'join' will create the offer.
+  // To implement that correctly, server can tell who is initiator. Here we simply treat both sides same:
+  let createdOffer = false;
+
+  async function startPeer(isInitiator){
+    if (!localStream) { alert('Start camera first'); return; }
+    pc = new RTCPeerConnection(ICE_CONFIG);
+
+    // add local tracks
+    for (const t of localStream.getTracks()) pc.addTrack(t, localStream);
+
+    pc.ontrack = (e) => {
+      // set remote stream (may be more than one)
+      remoteV.srcObject = e.streams[0];
+      setStatus('Connected to peer');
     };
 
-    // Validate config
-    if (!firebaseConfig || !firebaseConfig.apiKey) {
-      document.getElementById('status').textContent = 'Add Firebase config to the file before using';
-      throw new Error('Missing firebaseConfig — replace with your project settings');
-    }
-
-    // 3) Init
-    const app = initializeApp(firebaseConfig);
-    const db = getDatabase(app);
-    const auth = getAuth(app);
-
-    // DOM
-    const messagesEl = document.getElementById('messages');
-    const textEl = document.getElementById('text');
-    const sendBtn = document.getElementById('send');
-    const nameEl = document.getElementById('name');
-    const saveNameBtn = document.getElementById('saveName');
-    const avatarEl = document.getElementById('avatar');
-    const statusEl = document.getElementById('status');
-    const onlineCountEl = document.getElementById('onlineCount');
-    const typingEl = document.getElementById('typing');
-    const clearLocalBtn = document.getElementById('clearLocal');
-
-    // State
-    let me = { uid: null, name: 'Anonymous' };
-    const ROOM = 'global';            // single shared room (changeable)
-    const MESSAGES_PATH = `rooms/${ROOM}/messages`;
-    const PRESENCE_PATH = `rooms/${ROOM}/presence`;
-    const TYPING_PATH = `rooms/${ROOM}/typing`;
-
-    // Helpers
-    function makeAvatar(name) {
-      return (name && name[0]) ? name[0].toUpperCase() : 'U';
-    }
-    function formatTime(ts) {
-      const d = new Date(ts);
-      return d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
-    }
-
-    // 4) Sign-in anonymously, set up presence
-    signInAnonymously(auth).catch(err => {
-      statusEl.textContent = 'Auth error: ' + err.message;
-      console.error(err);
-    });
-
-    onAuthStateChanged(auth, user => {
-      if (!user) return;
-      me.uid = user.uid;
-      loadLocalName();
-      statusEl.textContent = 'Connected';
-      setupPresence();
-      listenMessages();
-      listenPresence();
-      listenTyping();
-    });
-
-    // Presence: write presence entry and remove on disconnect
-    function setupPresence(){
-      const pRef = ref(db, `${PRESENCE_PATH}/${me.uid}`);
-      set(pRef, { uid: me.uid, name: me.name, ts: serverTimestamp() });
-      onDisconnect(pRef).remove();
-
-      // Update last-seen timestamp periodically
-      setInterval(() => set(pRef, { uid: me.uid, name: me.name, ts: serverTimestamp() }), 25000);
-    }
-
-    // Listen presence list to show online count & names
-    function listenPresence(){
-      const presRef = ref(db, PRESENCE_PATH);
-      onValue(presRef, snapshot => {
-        const data = snapshot.val() || {};
-        const keys = Object.keys(data);
-        onlineCountEl.textContent = keys.length;
-      });
-      // Remove / re-add on unload is handled by onDisconnect above
-    }
-
-    // Typing indicator: write when user types, clear after idle
-    let typingTimer = null;
-    textEl.addEventListener('input', () => {
-      const tRef = ref(db, `${TYPING_PATH}/${me.uid}`);
-      if (textEl.value.trim()) {
-        set(tRef, { uid: me.uid, name: me.name, ts: serverTimestamp() });
-        onDisconnect(tRef).remove();
-      } else {
-        remove(tRef);
+    pc.onicecandidate = (evt) => {
+      if (evt.candidate && ws && ws.readyState === WebSocket.OPEN) {
+        ws.send(JSON.stringify({ type:'signal', payload:{ type:'ice', candidate: evt.candidate } }));
       }
-      clearTimeout(typingTimer);
-      typingTimer = setTimeout(() => remove(ref(db, `${TYPING_PATH}/${me.uid}`)), 1200);
-    });
+    };
 
-    function listenTyping(){
-      const tRef = ref(db, TYPING_PATH);
-      onValue(tRef, snap => {
-        const data = snap.val() || {};
-        const names = Object.values(data).filter(x=>x && x.name && x.uid !== me.uid).map(x=>x.name);
-        typingEl.textContent = names.length ? `${names.join(', ')} typing…` : '';
-      });
+    // create offer if this client is the one to start
+    // We'll ensure exactly one side creates offer by the following convention:
+    // The client that clicked "Find Random Partner" will send join; when paired, that same client becomes initiator.
+    // So we track createdOffer boolean elsewhere.
+    if (createdOffer) {
+      const offer = await pc.createOffer();
+      await pc.setLocalDescription(offer);
+      ws.send(JSON.stringify({ type:'signal', payload:{ type:'sdp', sdp: pc.localDescription } }));
     }
+    leaveBtn.disabled = false;
+  }
 
-    // 5) Messages: listen last 100, append as they come
-    function listenMessages(){
-      const q = query(ref(db, MESSAGES_PATH), limitToLast(100));
-      onChildAdded(q, (snap) => {
-        const m = snap.val();
-        appendMessage(m);
-      });
+  async function handleSignal(payload){
+    if (!pc) {
+      // If we get a signal and pc not created, create it and NOT create an offer (we will answer)
+      createdOffer = false;
+      await startPeer(false);
     }
-
-    function appendMessage(m){
-      // Remember last seen message locally (optional)
-      const div = document.createElement('div');
-      div.className = 'msg';
-      if (m.uid === me.uid) div.classList.add('right');
-
-      const av = document.createElement('div');
-      av.className = 'avatar';
-      av.textContent = makeAvatar(m.name);
-
-      const bub = document.createElement('div');
-      bub.className = 'bub';
-      const meta = document.createElement('div');
-      meta.className = 'meta';
-      meta.textContent = `${m.name || 'Anonymous'} • ${formatTime(m.ts || Date.now())}`;
-      bub.appendChild(meta);
-
-      const text = document.createElement('div');
-      text.textContent = m.text;
-      bub.appendChild(text);
-
-      div.appendChild(av);
-      div.appendChild(bub);
-      messagesEl.appendChild(div);
-      messagesEl.scrollTop = messagesEl.scrollHeight;
+    if (payload.type === 'sdp') {
+      const desc = payload.sdp;
+      if (desc.type === 'offer') {
+        // set remote and create answer
+        await pc.setRemoteDescription(new RTCSessionDescription(desc));
+        const answer = await pc.createAnswer();
+        await pc.setLocalDescription(answer);
+        ws.send(JSON.stringify({ type:'signal', payload:{ type:'sdp', sdp: pc.localDescription } }));
+      } else if (desc.type === 'answer') {
+        await pc.setRemoteDescription(new RTCSessionDescription(desc));
+      }
+    } else if (payload.type === 'ice') {
+      try {
+        await pc.addIceCandidate(payload.candidate);
+      } catch(e){ console.warn('ICE add failed', e); }
     }
+  }
 
-    // Sending message
-    sendBtn.addEventListener('click', sendMessage);
-    textEl.addEventListener('keydown', (e) => {
-      if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); sendMessage(); }
-    });
-
-    async function sendMessage(){
-      const txt = textEl.value.trim();
-      if (!txt) return;
-      const mRef = push(ref(db, MESSAGES_PATH));
-      await set(mRef, { uid: me.uid, name: me.name, text: txt, ts: serverTimestamp() });
-      textEl.value = '';
-      remove(ref(db, `${TYPING_PATH}/${me.uid}`));
+  function closePeer(){
+    if (pc) {
+      try { pc.getSenders().forEach(s => s.track && s.track.stop()); } catch {}
+      try { pc.close(); } catch {}
+      pc = null;
     }
+    remoteV.srcObject = null;
+    leaveBtn.disabled = true;
+    joinBtn.disabled = false;
+    createdOffer = false;
+  }
 
-    // Name editing + avatar
-    saveNameBtn.addEventListener('click', () => {
-      const n = nameEl.value.trim() || 'Anonymous';
-      me.name = n;
-      avatarEl.textContent = makeAvatar(n);
-      // update presence entry with new name
-      set(ref(db, `${PRESENCE_PATH}/${me.uid}`), { uid: me.uid, name: me.name, ts: serverTimestamp() });
-      localStorage.setItem('chat-name', me.name);
-    });
+  // UI handlers
+  startBtn.onclick = startCamera;
 
-    function loadLocalName(){
-      const stored = localStorage.getItem('chat-name');
-      if (stored) { me.name = stored; nameEl.value = stored; avatarEl.textContent = makeAvatar(stored); }
-      else { nameEl.value = me.name; avatarEl.textContent = makeAvatar(me.name); }
+  joinBtn.onclick = () => {
+    if (!localStream) { alert('Start camera first'); return; }
+    connectWS();
+    // When the user clicks Join, this client will be the initiator for creating the offer
+    createdOffer = true;
+    // Wait until socket opens then send join
+    const tryJoin = () => {
+      if (ws && ws.readyState === WebSocket.OPEN) {
+        ws.send(JSON.stringify({ type: 'join' }));
+        setStatus('joining queue...');
+        joinBtn.disabled = true;
+      } else {
+        setStatus('connecting to signaling server...');
+        setTimeout(tryJoin, 300);
+      }
+    };
+    tryJoin();
+  };
+
+  leaveBtn.onclick = () => {
+    if (ws && ws.readyState === WebSocket.OPEN) {
+      ws.send(JSON.stringify({ type: 'leave' }));
     }
+    closePeer();
+    setStatus('left');
+  };
 
-    // Clear messages locally (does not delete DB)
-    clearLocalBtn.addEventListener('click', ()=> messagesEl.innerHTML = '');
+  // cleanup before closing page
+  window.addEventListener('unload', () => {
+    if (ws && ws.readyState === WebSocket.OPEN) ws.send(JSON.stringify({ type:'leave' }));
+  });
 
-    // Optional: remove presence when window closed (onDisconnect already covers server-side)
-    window.addEventListener('beforeunload', ()=> { /* browser will fire onDisconnect on Firebase server */ });
+  // optional: auto-start camera
+  // await startCamera();
 
-    // Safety: observe remote deletion of messages (if admins purge)
-    onChildRemoved(ref(db, MESSAGES_PATH), (snap) => {
-      // Not implemented: could remove message element by id if stored; left simple
-    });
-  </script>
+})();
+</script>
 </body>
 </html>
