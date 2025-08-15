@@ -1,114 +1,91 @@
-<!DOCTYPE html>
-<html lang="en">
+<!doctype html>
+<html>
 <head>
-  <meta charset="utf-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>Random Video Chat</title>
-  <style>
-    :root { color-scheme: light dark; }
-    body { font-family: system-ui, Arial, sans-serif; margin: 0; background: #0b0f14; color: #fff; }
-    header { display:flex; align-items:center; justify-content:space-between; padding:12px 16px; background:#111827; position:sticky; top:0; z-index:10; }
-    .brand { font-weight:700; letter-spacing:.5px; }
-    .actions button { margin-left:8px; }
-    main { display:grid; grid-template-columns: 1fr 320px; gap:12px; padding:12px; }
-    .video-wrap { display:grid; grid-template-rows: 1fr 1fr; gap:12px; min-height: calc(100vh - 72px); }
-    video { width:100%; height:100%; background:#000; object-fit:cover; border-radius:16px; }
-    .me { outline: 2px solid #2563eb; }
-    .remote { outline: 2px solid #10b981; }
-    .panel { background:#0f172a; border:1px solid #1f2937; border-radius:16px; padding:12px; display:flex; flex-direction:column; }
-    .row { display:flex; gap:8px; flex-wrap:wrap; margin-bottom:8px; }
-    button { cursor:pointer; border:1px solid #374151; background:#111827; color:#e5e7eb; border-radius:12px; padding:8px 12px; }
-    button:disabled { opacity:.6; cursor:not-allowed; }
-    .pill { font-size:12px; opacity:.8; }
-    .chat { flex:1; overflow:auto; background:#0b1220; padding:8px; border-radius:8px; border:1px solid #1f2937; }
-    .msg { margin:6px 0; font-size:14px; }
-    .msg.me { text-align:right; opacity:.9; }
-    .msg.sys { text-align:center; opacity:.6; font-size:12px; }
-    .input { display:flex; gap:6px; }
-    input[type="text"] { flex:1; padding:10px; border-radius:10px; border:1px solid #374151; background:#0b1220; color:#e5e7eb; }
-    @media (max-width: 900px) {
-      main { grid-template-columns: 1fr; }
-      .video-wrap { grid-template-rows: 1fr 1fr; min-height:auto; }
-    }
-  </style>
+  <meta charset="utf-8"/>
+  <meta name="viewport" content="width=device-width,initial-scale=1"/>
+  <title>Simple Random Video Chat</title>
+  <style>body{font-family:Arial;background:#111;color:#fff;margin:0}header{padding:12px;background:#0b1220}video{width:100%;height:300px;background:#000;object-fit:cover}</style>
 </head>
 <body>
   <header>
-    <div class="brand">🎥 Random Video Chat</div>
-    <div class="actions">
-      <button id="btnStart">Start</button>
-      <button id="btnNext" disabled>Next</button>
-      <button id="btnMute" disabled>Mute</button>
-      <button id="btnVideo" disabled>Video Off</button>
-      <span id="status" class="pill">Idle</span>
-    </div>
+    <button id="start">Start</button>
+    <button id="next" disabled>Next</button>
+    <span id="status">Idle</span>
   </header>
 
-  <main>
-    <section class="video-wrap">
-      <video id="remoteVideo" class="remote" autoplay playsinline></video>
-      <video id="localVideo" class="me" autoplay playsinline muted></video>
-    </section>
-    <aside class="panel">
-      <div class="row">
-        <div class="pill">Your ID: <span id="myId">–</span></div>
-        <div class="pill">Partner: <span id="partnerId">–</span></div>
-      </div>
-      <div class="chat" id="chat"></div>
-      <div class="input">
-        <input id="chatInput" type="text" placeholder="Type message…" disabled />
-        <button id="chatSend" disabled>Send</button>
-      </div>
-    </aside>
+  <main style="padding:12px;display:grid;grid-template-columns:1fr 1fr;gap:12px;">
+    <div><h4>Remote</h4><video id="remote" autoplay playsinline></video></div>
+    <div><h4>Local</h4><video id="local" autoplay playsinline muted></video></div>
   </main>
 
   <script>
-    // EDIT THIS before deploying the client to GitHub Pages:
-    // Set the WS_SIGNALLING_URL to your deployed server's wss:// URL (e.g. wss://yourserver.com or wss://yourserver.com/ws)
-    const WS_SIGNALLING_URL = 'wss://vmfm.github.io/tamilrandomchat';
+    // EDIT this to your server WSS after you deploy it:
+    const WS = 'wss://YOUR_SERVER_HERE';
 
-    const state = { ws: null, pc: null, localStream: null, partnerId: null, isMuted: false, videoOff: false };
+    let ws, pc, localStream;
+    const remoteVid = document.getElementById('remote');
+    const localVid = document.getElementById('local');
+    const startBtn = document.getElementById('start');
+    const nextBtn = document.getElementById('next');
+    const status = document.getElementById('status');
 
-    const nodes = { btnStart: document.getElementById('btnStart'), btnNext: document.getElementById('btnNext'), btnMute: document.getElementById('btnMute'), btnVideo: document.getElementById('btnVideo'), status: document.getElementById('status'), myId: document.getElementById('myId'), partnerId: document.getElementById('partnerId'), localVideo: document.getElementById('localVideo'), remoteVideo: document.getElementById('remoteVideo'), chat: document.getElementById('chat'), chatInput: document.getElementById('chatInput'), chatSend: document.getElementById('chatSend') };
+    function setStatus(t){ status.textContent = t; }
 
-    function logSys(text){ addMsg('sys', text); }
-    function addMsg(who, text){ const div = document.createElement('div'); div.className = `msg ${who}`; div.textContent = text; nodes.chat.appendChild(div); nodes.chat.scrollTop = nodes.chat.scrollHeight; }
-    function setStatus(text){ nodes.status.textContent = text; }
-    function wsSend(type, payload={}){ if (state.ws && state.ws.readyState === WebSocket.OPEN) state.ws.send(JSON.stringify({ type, ...payload })); }
+    async function getMedia(){
+      localStream = await navigator.mediaDevices.getUserMedia({video:true,audio:true});
+      localVid.srcObject = localStream;
+    }
 
-    async function initMedia(){ if (state.localStream) return state.localStream; try { const stream = await navigator.mediaDevices.getUserMedia({ video: true, audio: true }); state.localStream = stream; nodes.localVideo.srcObject = stream; return stream; } catch (e){ alert('Camera/Mic permission denied or unavailable.'); throw e; } }
+    function createPeer(){
+      pc = new RTCPeerConnection({iceServers:[{urls:'stun:stun.l.google.com:19302'}]});
+      localStream.getTracks().forEach(t=>pc.addTrack(t, localStream));
+      pc.ontrack = e => remoteVid.srcObject = e.streams[0];
+      pc.onicecandidate = e => { if(e.candidate) ws.send(JSON.stringify({type:'signal', data:{candidate:e.candidate}})); };
+    }
 
-    function createPeer(){ if (state.pc) state.pc.close(); const pc = new RTCPeerConnection({ iceServers: [ { urls: 'stun:stun.l.google.com:19302' }, { urls: 'stun:global.stun.twilio.com:3478?transport=udp' } ] }); state.localStream.getTracks().forEach(track => pc.addTrack(track, state.localStream)); pc.onicecandidate = e => { if (e.candidate) wsSend('signal', { data: { candidate: e.candidate } }); }; pc.ontrack = e => { nodes.remoteVideo.srcObject = e.streams[0]; }; pc.onconnectionstatechange = () => { setStatus('Peer: ' + pc.connectionState); }; state.pc = pc; return pc; }
+    async function makeOffer(){ await pc.setLocalDescription(await pc.createOffer()); ws.send(JSON.stringify({type:'signal', data:{sdp: pc.localDescription}})); }
 
-    async function makeOffer(){ const pc = state.pc; const offer = await pc.createOffer({ offerToReceiveAudio: true, offerToReceiveVideo: true }); await pc.setLocalDescription(offer); wsSend('signal', { data: { sdp: pc.localDescription } }); }
-
-    async function handleSignal(data){ const pc = state.pc; if (data.sdp) { const remoteDesc = new RTCSessionDescription(data.sdp); await pc.setRemoteDescription(remoteDesc); if (remoteDesc.type === 'offer') { const answer = await pc.createAnswer(); await pc.setLocalDescription(answer); wsSend('signal', { data: { sdp: pc.localDescription } }); } } else if (data.candidate) { try { await pc.addIceCandidate(data.candidate); } catch {} } }
-
-    function bindChat(){ nodes.chatSend.onclick = () => { const msg = nodes.chatInput.value.trim(); if (!msg) return; addMsg('me', msg); wsSend('text', { message: msg }); nodes.chatInput.value = ''; }; nodes.chatInput.onkeydown = (e)=>{ if(e.key==='Enter') nodes.chatSend.click(); }; }
-
-    function toggleMute(){ state.isMuted = !state.isMuted; state.localStream.getAudioTracks().forEach(t => t.enabled = !state.isMuted); nodes.btnMute.textContent = state.isMuted ? 'Unmute' : 'Mute'; }
-    function toggleVideo(){ state.videoOff = !state.videoOff; state.localStream.getVideoTracks().forEach(t => t.enabled = !state.videoOff); nodes.btnVideo.textContent = state.videoOff ? 'Video On' : 'Video Off'; }
-    function enableControls(enabled){ nodes.btnNext.disabled = !enabled; nodes.btnMute.disabled = !enabled; nodes.btnVideo.disabled = !enabled; nodes.chatInput.disabled = !enabled; nodes.chatSend.disabled = !enabled; }
-
-    async function start(){ nodes.btnStart.disabled = true; setStatus('Connecting…'); await initMedia(); bindChat(); state.ws = new WebSocket(WS_SIGNALLING_URL); state.ws.onopen = () => { setStatus('Connected'); wsSend('find-partner'); }; state.ws.onclose = () => { setStatus('Disconnected'); enableControls(false); nodes.partnerId.textContent = '–'; }; state.ws.onerror = () => { setStatus('Error'); };
-
-      state.ws.onmessage = async (event) => {
-        const msg = JSON.parse(event.data);
-        switch (msg.type) {
-          case 'connected': nodes.myId.textContent = msg.id; break;
-          case 'waiting': setStatus('Waiting for a partner…'); enableControls(false); break;
-          case 'paired': nodes.partnerId.textContent = msg.partnerId; state.partnerId = msg.partnerId; setStatus('Paired with #' + msg.partnerId); enableControls(true); createPeer(); const myId = Number(nodes.myId.textContent || 0); const amCaller = myId <= Number(msg.partnerId) || Math.random() < 0.5; if (amCaller) await makeOffer(); break;
-          case 'signal': await handleSignal(msg.data); break;
-          case 'text': addMsg('them', msg.message); break;
-          case 'partner-left': logSys('Partner left: ' + (msg.reason || 'left')); nodes.partnerId.textContent = '–'; enableControls(false); if (state.pc) { try { state.pc.close(); } catch {} } wsSend('find-partner'); break;
+    async function handleSignal(data){
+      if(data.sdp){
+        await pc.setRemoteDescription(new RTCSessionDescription(data.sdp));
+        if(data.sdp.type === 'offer'){
+          await pc.setLocalDescription(await pc.createAnswer());
+          ws.send(JSON.stringify({type:'signal', data:{sdp: pc.localDescription}}));
         }
+      } else if(data.candidate){
+        try{ await pc.addIceCandidate(data.candidate); }catch(e){}
+      }
+    }
+
+    async function connectWS(){
+      ws = new WebSocket(WS);
+      ws.onopen = ()=>{ setStatus('WS open'); ws.send(JSON.stringify({type:'find'})); };
+      ws.onclose = ()=> setStatus('WS closed');
+      ws.onerror = ()=> setStatus('WS error');
+      ws.onmessage = async (ev)=>{
+        const msg = JSON.parse(ev.data);
+        if(msg.type === 'id') document.title = 'ID:'+msg.id;
+        else if(msg.type === 'waiting') setStatus('Waiting for partner...');
+        else if(msg.type === 'paired'){
+          setStatus('Paired with '+msg.partnerId);
+          createPeer();
+          // caller = lower id offers
+          const myId = Number(document.title.split(':')[1]||0);
+          if(myId <= msg.partnerId) await makeOffer();
+          nextBtn.disabled = false;
+        } else if(msg.type === 'signal') await handleSignal(msg.data);
+        else if(msg.type === 'partner-left'){ setStatus('Partner left'); nextBtn.disabled = true; }
       };
     }
 
-    nodes.btnStart.onclick = start;
-    nodes.btnNext.onclick = () => wsSend('find-partner');
-    nodes.btnMute.onclick = toggleMute;
-    nodes.btnVideo.onclick = toggleVideo;
+    startBtn.onclick = async () => {
+      startBtn.disabled = true;
+      setStatus('Getting media...');
+      await getMedia();
+      await connectWS();
+    };
+
+    nextBtn.onclick = ()=> { if(ws && ws.readyState===WebSocket.OPEN) ws.send(JSON.stringify({type:'find'})); setStatus('Finding new partner...'); };
   </script>
 </body>
 </html>
