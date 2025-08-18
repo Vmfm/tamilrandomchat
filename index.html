@@ -1,203 +1,285 @@
-<!doctype html>
-<html>
+<!DOCTYPE html>
+<html lang="en">
 <head>
-  <meta charset="utf-8" />
-  <title>Random Video Chat (GitHub Pages)</title>
-  <meta name="viewport" content="width=device-width,initial-scale=1" />
-  <style>
-    body { font-family: Arial, sans-serif; background:#111; color:#eee; display:flex; flex-direction:column; align-items:center; padding:20px; }
-    video { width:320px; height:240px; background:#000; margin:8px; border-radius:8px; box-shadow:0 2px 8px rgba(0,0,0,0.6); }
-    #controls { margin:12px; display:flex; gap:8px; }
-    button { padding:8px 12px; border-radius:6px; border:none; background:#2d8cff; color:white; cursor:pointer; }
-    button.danger { background:#ff5858; }
-    .status { margin-top:8px; font-size:0.95rem; opacity:0.9; }
-  </style>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width,initial-scale=1" />
+<title>Tamil VM Chat – Random Video</title>
+
+<!-- PeerJS (hosted) -->
+<script src="https://unpkg.com/peerjs@1.5.2/dist/peerjs.min.js"></script>
+
+<style>
+  :root {
+    --bg1: #0f172a; /* slate-900 */
+    --bg2: #1e293b; /* slate-800 */
+    --card: #111827ee; /* gray-900 */
+    --text: #e5e7eb;   /* gray-200 */
+    --accent: #38bdf8; /* sky-400 */
+    --accent-2: #22c55e; /* green-500 */
+  }
+  * { box-sizing: border-box; }
+  html, body {
+    margin: 0; padding: 0; height: 100%; font-family: system-ui, Arial, sans-serif;
+    color: var(--text); background: radial-gradient(1200px 600px at 10% 0%, var(--bg2), var(--bg1));
+  }
+  .wrap { max-width: 960px; margin: 0 auto; padding: 16px 16px 80px; }
+  header { text-align: center; margin: 14px 0 18px; }
+  h1 { font-size: 22px; margin: 0 0 4px; letter-spacing: .3px; }
+  .sub { font-size: 13px; opacity: .8; }
+
+  .grid {
+    display: grid; gap: 14px;
+    grid-template-columns: 1fr;
+  }
+  @media (min-width: 900px) {
+    .grid { grid-template-columns: 1fr 1fr; }
+  }
+
+  .card {
+    background: var(--card); border: 1px solid #1f2937;
+    border-radius: 16px; padding: 14px;
+    box-shadow: 0 10px 30px rgba(0,0,0,.35);
+  }
+  .video {
+    width: 100%; aspect-ratio: 16/9; background:#0b1220; border-radius: 12px; overflow: hidden;
+  }
+  video { width: 100%; height: 100%; object-fit: cover; background:#000; }
+
+  .controls {
+    display: flex; gap: 10px; flex-wrap: wrap; margin-top: 12px;
+  }
+  button {
+    cursor: pointer; border: 1px solid #334155; background:#0b1220;
+    color: var(--text); padding: 10px 14px; border-radius: 12px; font-weight: 600;
+    transition: transform .08s ease, box-shadow .15s ease, border-color .15s ease;
+  }
+  button:hover { transform: translateY(-1px); border-color:#475569; }
+  .primary { background: linear-gradient(90deg, var(--accent), #60a5fa); border: none; color:#0b1220; }
+  .danger  { background: linear-gradient(90deg, #f43f5e, #fb7185); border: none; color:#0b1220; }
+  .muted   { background:#111827; }
+
+  .status {
+    margin-top: 10px; font-size: 14px; line-height: 1.4;
+    background:#0b1220; border:1px solid #1f2937; padding:10px 12px; border-radius: 10px;
+  }
+  .pill {
+    display:inline-block; padding:3px 8px; border-radius:999px; background:#0b1220; border:1px solid #333; font-size:12px;
+  }
+  footer {
+    position: fixed; inset-inline: 0; bottom: 0; text-align: center; padding: 10px; font-size: 12px;
+    background: linear-gradient(0deg, rgba(0,0,0,.4), rgba(0,0,0,0));
+  }
+  .hint { opacity:.75; }
+</style>
 </head>
 <body>
-  <h2>Random Video Chat</h2>
-  <div>
-    <video id="local" autoplay muted playsinline></video>
-    <video id="remote" autoplay playsinline></video>
+<div class="wrap">
+  <header>
+    <h1>Random Video Chat</h1>
+    <div class="sub">Open this page on two devices and press <strong>Find Random Partner</strong>.</div>
+  </header>
+
+  <div class="grid">
+    <section class="card">
+      <div class="pill" id="myIdPill">ID: …</div>
+      <div class="video"><video id="localVideo" autoplay playsinline muted></video></div>
+
+      <div class="controls">
+        <button id="btnFind" class="primary">Find Random Partner</button>
+        <button id="btnNext" class="primary">Next</button>
+        <button id="btnHang" class="danger">Hang Up</button>
+        <button id="btnMic" class="muted">Mic On</button>
+        <button id="btnCam" class="muted">Cam On</button>
+      </div>
+
+      <div class="status" id="status">Initializing…</div>
+    </section>
+
+    <section class="card">
+      <div class="pill" id="peerPill">Partner: —</div>
+      <div class="video"><video id="remoteVideo" autoplay playsinline></video></div>
+      <div class="status" id="net">Network: Using public STUN (Google).</div>
+    </section>
   </div>
-  <div id="controls">
-    <button id="startBtn">Start Camera</button>
-    <button id="joinBtn" disabled>Find Random Partner</button>
-    <button id="leaveBtn" class="danger" disabled>Leave</button>
-  </div>
-  <div class="status" id="status">Status: idle</div>
+</div>
+
+<footer class="hint">Tip: If nothing happens, leave this page open for a few seconds so others can find you.</footer>
 
 <script>
-(async function(){
-  // CONFIG
-  // Replace with your signaling server address (ws:// or wss://)
-  const SIGNAL_SERVER = "wss://vmfm.github.io/tamilrandomchat"; // e.g. wss://example.com
-  // STUN servers
-  const ICE_CONFIG = { iceServers: [
-    { urls: "stun:stun.l.google.com:19302" },
-    // add TURN here if you have one
-  ]};
+(() => {
+  // ---------- Config ----------
+  // App namespace prefix so we don't collide with other PeerJS users:
+  const APP_PREFIX = "tvm-";
+  // Public STUN; add TURN if you later need strict NAT traversal.
+  const rtcConfig = {
+    iceServers: [{ urls: ["stun:stun.l.google.com:19302"] }],
+  };
 
-  // UI
-  const startBtn = document.getElementById('startBtn');
-  const joinBtn  = document.getElementById('joinBtn');
-  const leaveBtn = document.getElementById('leaveBtn');
-  const localV   = document.getElementById('local');
-  const remoteV  = document.getElementById('remote');
-  const statusEl = document.getElementById('status');
+  // ---------- Elements ----------
+  const elLocal = document.getElementById("localVideo");
+  const elRemote = document.getElementById("remoteVideo");
+  const elStatus = document.getElementById("status");
+  const elNet = document.getElementById("net");
+  const elMyIdPill = document.getElementById("myIdPill");
+  const elPeerPill = document.getElementById("peerPill");
+  const btnFind = document.getElementById("btnFind");
+  const btnNext = document.getElementById("btnNext");
+  const btnHang = document.getElementById("btnHang");
+  const btnMic = document.getElementById("btnMic");
+  const btnCam = document.getElementById("btnCam");
 
+  // ---------- State ----------
+  let peer, myId;
   let localStream = null;
-  let pc = null;
-  let ws = null;
-  let paired = false;
+  let currentCall = null;
 
-  function setStatus(s){ statusEl.textContent = 'Status: ' + s; }
+  // ---------- Helpers ----------
+  const setStatus = (msg) => { elStatus.textContent = msg; };
+  const setPartner = (id) => { elPeerPill.textContent = "Partner: " + (id || "—"); };
 
-  async function startCamera(){
+  function randomId() {
+    const s = Math.random().toString(36).substring(2, 8);
+    return APP_PREFIX + s;
+  }
+
+  function cleanupCall() {
+    if (currentCall) {
+      try { currentCall.close(); } catch {}
+      currentCall = null;
+    }
+    elRemote.srcObject = null;
+    setPartner("—");
+  }
+
+  function ensureMedia() {
+    if (localStream) return Promise.resolve(localStream);
+    return navigator.mediaDevices.getUserMedia({ video: true, audio: true })
+      .then(stream => {
+        localStream = stream;
+        elLocal.srcObject = stream;
+        btnMic.textContent = stream.getAudioTracks()[0]?.enabled ? "Mic On" : "Mic Off";
+        btnCam.textContent = stream.getVideoTracks()[0]?.enabled ? "Cam On" : "Cam Off";
+        return stream;
+      });
+  }
+
+  // ---------- Init Peer ----------
+  async function init() {
+    setStatus("Requesting camera & mic…");
     try {
-      localStream = await navigator.mediaDevices.getUserMedia({ video:true, audio:true });
-      localV.srcObject = localStream;
-      startBtn.disabled = true;
-      joinBtn.disabled = false;
-      setStatus('camera ready');
+      await ensureMedia();
+      setStatus("Starting PeerJS…");
     } catch (e) {
-      alert('Camera permission denied or no device: ' + e.message);
-      setStatus('camera error');
+      setStatus("Permission needed for camera/mic. Error: " + e.message);
+      return;
+    }
+
+    // Create a peer; no API key/domain needed on PeerJS Cloud
+    myId = randomId();
+    // If your environment blocks default cloud, uncomment host options below:
+    peer = new Peer(myId, {
+      config: rtcConfig,
+      debug: 1,
+      // host: "peerjs.com", port: 443, path: "/", secure: true,  // optional explicit host
+    });
+
+    peer.on("open", (id) => {
+      elMyIdPill.textContent = "ID: " + id;
+      setStatus("Ready. Tap “Find Random Partner”.");
+      // Auto-answer incoming calls:
+      peer.on("call", (call) => {
+        setStatus("Incoming call… connecting");
+        currentCall?.close?.(); // end any existing
+        currentCall = call;
+        ensureMedia().then(() => {
+          call.answer(localStream);
+          setPartner(call.peer);
+          hookCallEvents(call);
+        });
+      });
+    });
+
+    peer.on("error", (err) => {
+      setStatus("Peer error: " + err.type + " – " + (err.message || ""));
+    });
+
+    peer.on("disconnected", () => setStatus("Disconnected. Reconnecting…"));
+    peer.on("close", () => setStatus("Connection closed."));
+  }
+
+  function hookCallEvents(call) {
+    call.on("stream", (remoteStream) => {
+      elRemote.srcObject = remoteStream;
+      setStatus("Connected. Say hi! 🎉");
+    });
+    call.on("error", (err) => setStatus("Call error: " + err.message));
+    call.on("close", () => {
+      setStatus("Partner left.");
+      cleanupCall();
+    });
+  }
+
+  // ---------- Matchmaking ----------
+  // Uses listAllPeers to discover available IDs with our prefix.
+  async function findRandomPartner() {
+    if (!peer || peer.disconnected) {
+      setStatus("Peer not ready yet. Please wait 1–2 seconds.");
+      return;
+    }
+    setStatus("Searching for a random partner…");
+    try {
+      await ensureMedia();
+      peer.listAllPeers((peers) => {
+        // Limit to our namespace and not ourselves; randomize
+        const list = peers
+          .filter(p => p.startsWith(APP_PREFIX) && p !== myId)
+          .sort(() => Math.random() - 0.5);
+
+        if (!list.length) {
+          setStatus("No partner found right now. Waiting for someone to join… leave this page open.");
+          return;
+        }
+
+        const partner = list[0];
+        setPartner(partner);
+        // Place a call:
+        cleanupCall();
+        const call = peer.call(partner, localStream, { metadata: { ts: Date.now() } });
+        currentCall = call;
+        hookCallEvents(call);
+        setStatus("Calling " + partner + " …");
+      });
+    } catch (e) {
+      setStatus("Find failed: " + e.message);
     }
   }
 
-  function connectWS(){
-    if (ws && ws.readyState === WebSocket.OPEN) return;
-    ws = new WebSocket(SIGNAL_SERVER);
-    ws.onopen = ()=> { setStatus('connected to signaling server'); };
-    ws.onclose = ()=> { setStatus('signaling disconnected'); };
-    ws.onerror = (e)=> { console.error('WS err', e); setStatus('signaling error'); };
-    ws.onmessage = async (ev) => {
-      const msg = JSON.parse(ev.data);
-      // types: waiting, paired, signal, peer-left
-      if (msg.type === 'waiting') {
-        setStatus('waiting for partner...');
-      } else if (msg.type === 'paired') {
-        setStatus('paired — starting WebRTC negotiation');
-        startPeer(true); // initiator? We'll decide below
-      } else if (msg.type === 'signal') {
-        await handleSignal(msg.payload);
-      } else if (msg.type === 'peer-left') {
-        setStatus('Peer left');
-        closePeer();
-      }
-    };
-  }
-
-  // Simple heuristic: the client that receives 'paired' and currently has no offer will act as 'caller'
-  // We'll implement a call where the client that initiates the 'join' will create the offer.
-  // To implement that correctly, server can tell who is initiator. Here we simply treat both sides same:
-  let createdOffer = false;
-
-  async function startPeer(isInitiator){
-    if (!localStream) { alert('Start camera first'); return; }
-    pc = new RTCPeerConnection(ICE_CONFIG);
-
-    // add local tracks
-    for (const t of localStream.getTracks()) pc.addTrack(t, localStream);
-
-    pc.ontrack = (e) => {
-      // set remote stream (may be more than one)
-      remoteV.srcObject = e.streams[0];
-      setStatus('Connected to peer');
-    };
-
-    pc.onicecandidate = (evt) => {
-      if (evt.candidate && ws && ws.readyState === WebSocket.OPEN) {
-        ws.send(JSON.stringify({ type:'signal', payload:{ type:'ice', candidate: evt.candidate } }));
-      }
-    };
-
-    // create offer if this client is the one to start
-    // We'll ensure exactly one side creates offer by the following convention:
-    // The client that clicked "Find Random Partner" will send join; when paired, that same client becomes initiator.
-    // So we track createdOffer boolean elsewhere.
-    if (createdOffer) {
-      const offer = await pc.createOffer();
-      await pc.setLocalDescription(offer);
-      ws.send(JSON.stringify({ type:'signal', payload:{ type:'sdp', sdp: pc.localDescription } }));
-    }
-    leaveBtn.disabled = false;
-  }
-
-  async function handleSignal(payload){
-    if (!pc) {
-      // If we get a signal and pc not created, create it and NOT create an offer (we will answer)
-      createdOffer = false;
-      await startPeer(false);
-    }
-    if (payload.type === 'sdp') {
-      const desc = payload.sdp;
-      if (desc.type === 'offer') {
-        // set remote and create answer
-        await pc.setRemoteDescription(new RTCSessionDescription(desc));
-        const answer = await pc.createAnswer();
-        await pc.setLocalDescription(answer);
-        ws.send(JSON.stringify({ type:'signal', payload:{ type:'sdp', sdp: pc.localDescription } }));
-      } else if (desc.type === 'answer') {
-        await pc.setRemoteDescription(new RTCSessionDescription(desc));
-      }
-    } else if (payload.type === 'ice') {
-      try {
-        await pc.addIceCandidate(payload.candidate);
-      } catch(e){ console.warn('ICE add failed', e); }
-    }
-  }
-
-  function closePeer(){
-    if (pc) {
-      try { pc.getSenders().forEach(s => s.track && s.track.stop()); } catch {}
-      try { pc.close(); } catch {}
-      pc = null;
-    }
-    remoteV.srcObject = null;
-    leaveBtn.disabled = true;
-    joinBtn.disabled = false;
-    createdOffer = false;
-  }
-
-  // UI handlers
-  startBtn.onclick = startCamera;
-
-  joinBtn.onclick = () => {
-    if (!localStream) { alert('Start camera first'); return; }
-    connectWS();
-    // When the user clicks Join, this client will be the initiator for creating the offer
-    createdOffer = true;
-    // Wait until socket opens then send join
-    const tryJoin = () => {
-      if (ws && ws.readyState === WebSocket.OPEN) {
-        ws.send(JSON.stringify({ type: 'join' }));
-        setStatus('joining queue...');
-        joinBtn.disabled = true;
-      } else {
-        setStatus('connecting to signaling server...');
-        setTimeout(tryJoin, 300);
-      }
-    };
-    tryJoin();
-  };
-
-  leaveBtn.onclick = () => {
-    if (ws && ws.readyState === WebSocket.OPEN) {
-      ws.send(JSON.stringify({ type: 'leave' }));
-    }
-    closePeer();
-    setStatus('left');
-  };
-
-  // cleanup before closing page
-  window.addEventListener('unload', () => {
-    if (ws && ws.readyState === WebSocket.OPEN) ws.send(JSON.stringify({ type:'leave' }));
+  // ---------- Buttons ----------
+  btnFind.addEventListener("click", findRandomPartner);
+  btnNext.addEventListener("click", () => {
+    if (currentCall) { currentCall.close(); }
+    setStatus("Finding next partner…");
+    setTimeout(findRandomPartner, 200);
+  });
+  btnHang.addEventListener("click", () => {
+    if (currentCall) { currentCall.close(); }
+    setStatus("Call ended.");
   });
 
-  // optional: auto-start camera
-  // await startCamera();
+  btnMic.addEventListener("click", () => {
+    if (!localStream) return;
+    const t = localStream.getAudioTracks()[0];
+    if (t) { t.enabled = !t.enabled; btnMic.textContent = t.enabled ? "Mic On" : "Mic Off"; }
+  });
 
+  btnCam.addEventListener("click", () => {
+    if (!localStream) return;
+    const t = localStream.getVideoTracks()[0];
+    if (t) { t.enabled = !t.enabled; btnCam.textContent = t.enabled ? "Cam On" : "Cam Off"; }
+  });
+
+  // ---------- Start ----------
+  init();
 })();
 </script>
 </body>
