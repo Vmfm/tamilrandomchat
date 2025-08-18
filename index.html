@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width,initial-scale=1" />
 <title>Tamil VM Chat – Random Video</title>
 
-<!-- PeerJS (hosted) -->
+<!-- PeerJS -->
 <script src="https://unpkg.com/peerjs@1.5.2/dist/peerjs.min.js"></script>
 
 <style>
@@ -98,7 +98,7 @@
     <section class="card">
       <div class="pill" id="peerPill">Partner: —</div>
       <div class="video"><video id="remoteVideo" autoplay playsinline></video></div>
-      <div class="status" id="net">Network: Using public STUN (Google).</div>
+      <div class="status" id="net">Network: Using public STUN + TURN (Metered.ca).</div>
     </section>
   </div>
 </div>
@@ -108,18 +108,34 @@
 <script>
 (() => {
   // ---------- Config ----------
-  // App namespace prefix so we don't collide with other PeerJS users:
   const APP_PREFIX = "tvm-";
-  // Public STUN; add TURN if you later need strict NAT traversal.
+  // Added free TURN servers
   const rtcConfig = {
-    iceServers: [{ urls: ["stun:stun.l.google.com:19302"] }],
+    iceServers: [
+      { urls: "stun:stun.l.google.com:19302" },
+      { urls: "stun:stun1.l.google.com:19302" },
+      {
+        urls: "turn:global.relay.metered.ca:80",
+        username: "openai",
+        credential: "openai"
+      },
+      {
+        urls: "turn:global.relay.metered.ca:443",
+        username: "openai",
+        credential: "openai"
+      },
+      {
+        urls: "turns:global.relay.metered.ca:443",
+        username: "openai",
+        credential: "openai"
+      }
+    ]
   };
 
   // ---------- Elements ----------
   const elLocal = document.getElementById("localVideo");
   const elRemote = document.getElementById("remoteVideo");
   const elStatus = document.getElementById("status");
-  const elNet = document.getElementById("net");
   const elMyIdPill = document.getElementById("myIdPill");
   const elPeerPill = document.getElementById("peerPill");
   const btnFind = document.getElementById("btnFind");
@@ -138,8 +154,7 @@
   const setPartner = (id) => { elPeerPill.textContent = "Partner: " + (id || "—"); };
 
   function randomId() {
-    const s = Math.random().toString(36).substring(2, 8);
-    return APP_PREFIX + s;
+    return APP_PREFIX + Math.random().toString(36).substring(2, 8);
   }
 
   function cleanupCall() {
@@ -174,22 +189,18 @@
       return;
     }
 
-    // Create a peer; no API key/domain needed on PeerJS Cloud
     myId = randomId();
-    // If your environment blocks default cloud, uncomment host options below:
     peer = new Peer(myId, {
       config: rtcConfig,
-      debug: 1,
-      // host: "peerjs.com", port: 443, path: "/", secure: true,  // optional explicit host
+      debug: 1
     });
 
     peer.on("open", (id) => {
       elMyIdPill.textContent = "ID: " + id;
       setStatus("Ready. Tap “Find Random Partner”.");
-      // Auto-answer incoming calls:
       peer.on("call", (call) => {
         setStatus("Incoming call… connecting");
-        currentCall?.close?.(); // end any existing
+        currentCall?.close?.();
         currentCall = call;
         ensureMedia().then(() => {
           call.answer(localStream);
@@ -220,7 +231,6 @@
   }
 
   // ---------- Matchmaking ----------
-  // Uses listAllPeers to discover available IDs with our prefix.
   async function findRandomPartner() {
     if (!peer || peer.disconnected) {
       setStatus("Peer not ready yet. Please wait 1–2 seconds.");
@@ -230,7 +240,6 @@
     try {
       await ensureMedia();
       peer.listAllPeers((peers) => {
-        // Limit to our namespace and not ourselves; randomize
         const list = peers
           .filter(p => p.startsWith(APP_PREFIX) && p !== myId)
           .sort(() => Math.random() - 0.5);
@@ -242,7 +251,6 @@
 
         const partner = list[0];
         setPartner(partner);
-        // Place a call:
         cleanupCall();
         const call = peer.call(partner, localStream, { metadata: { ts: Date.now() } });
         currentCall = call;
