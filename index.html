@@ -3,7 +3,7 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>Random Video Chat</title>
+  <title>Random Video Chat — PeerJS (No Firebase)</title>
   <style>
     body{margin:0;font-family:system-ui,Segoe UI,Roboto,Helvetica,Arial,sans-serif;background:#0b0b0f;color:#eaeaf0}
     .wrap{max-width:900px;margin:0 auto;padding:16px}
@@ -19,20 +19,35 @@
     .hint{opacity:.7;font-size:12px}
     #log{height:110px;overflow:auto;background:#0f1017;border:1px solid #22232b;border-radius:10px;padding:8px;font-size:12px}
     .badge{font-size:12px;padding:2px 8px;border-radius:999px;background:#0b6b37;color:#d6ffe9;border:1px solid #0a5b2f}
+    .pill{font-size:12px;padding:2px 8px;border-radius:999px;background:#1e1f28;color:#cbd3dc;border:1px solid #272836}
   </style>
 </head>
 <body>
   <!--
-    HOW TO DEPLOY ON GITHUB PAGES
-    1) Create a Firebase project → add Web App → copy config.
-    2) Enable Realtime Database (test mode while testing).
-    3) Paste your config in firebaseConfig below.
-    4) Save this file as index.html in a repo → Settings → Pages → deploy from main branch.
+    ZERO BACKEND / ZERO FIREBASE VERSION (PeerJS)
+
+    How it works:
+    - Uses PeerJS Cloud signaling (no account required) for WebRTC handshakes.
+    - One tab may become a lightweight "lobby server" (in-browser) using a fixed Peer ID.
+    - Others connect to the lobby and get paired randomly.
+
+    Deploy on GitHub Pages:
+    1) Save this file as index.html in a repo → Settings → Pages → deploy from main.
+    2) Open the Pages URL on two devices/browsers to test.
+
+    Notes:
+    - HTTPS is required (GitHub Pages provides this).
+    - Free PeerJS Cloud has limits; fine for testing/small usage.
+    - Without TURN servers, some networks may fail to connect. You can add TURN later.
   -->
   <div class="wrap">
     <div class="row" style="justify-content:space-between">
       <h1>Random Video Chat</h1>
-      <span id="status" class="badge">idle</span>
+      <div class="row">
+        <span id="status" class="badge">idle</span>
+        <span id="role" class="pill">role: client</span>
+        <span id="myId" class="pill">id: —</span>
+      </div>
     </div>
 
     <div class="grid">
@@ -57,122 +72,179 @@
     </div>
   </div>
 
-  <!-- Firebase compat for simplicity -->
-  <script src="https://www.gstatic.com/firebasejs/10.13.1/firebase-app-compat.js"></script>
-  <script src="https://www.gstatic.com/firebasejs/10.13.1/firebase-database-compat.js"></script>
+  <!-- PeerJS from CDN -->
+  <script src="https://unpkg.com/peerjs@1.5.2/dist/peerjs.min.js"></script>
 
   <script>
-    // 1) PASTE YOUR FIREBASE CONFIG HERE
-    const firebaseConfig = {
-      apiKey: "
-AIzaSyB1VbLbqBxCiG_bfGoQgQyapXwHUQ-Q7BU",
-      authDomain: "PASTE.firebaseapp.com",
-      databaseURL: "https://tamil-chat-2d54e-default-rtdb.firebaseio.com
-",
-      projectId: "tamil-chat-2d54e",
-      storageBucket: "PASTE.appspot.com",
-      messagingSenderId: "804705969240",
-      appId: "1:804705969240:android:658df281dd8360843c162d
-"
+    // ====== CONFIG ======
+    const LOBBY_ID = 'tvm-lobby-1'; // fixed ID for the in-browser lobby
+    const peerOpts = {
+      host: 'peerjs.com',
+      port: 443,
+      secure: true,
+      debug: 2,
+      // Provide ICE servers (add your TURN later if needed)
+      config: { iceServers: [
+        { urls: ['stun:stun.l.google.com:19302','stun:stun1.l.google.com:19302'] },
+        // { urls: 'turn:YOUR_TURN_SERVER', username: 'user', credential: 'pass' }
+      ]}
     };
 
-    // ====== BASIC RANDOM MATCH + WEBRTC ======
-    firebase.initializeApp(firebaseConfig);
-    const db = firebase.database();
-
+    // ====== UI helpers ======
     const $ = (s)=>document.querySelector(s);
     const logEl = $('#log');
-    const statusEl = $('#status');
-    const setStatus = (t)=>statusEl.textContent=t;
-    const log = (m)=>{ const t=new Date().toLocaleTimeString(); logEl.innerHTML+=`[${t}] ${m}<br>`; logEl.scrollTop=logEl.scrollHeight; };
+    function log(msg){ const t=new Date().toLocaleTimeString(); logEl.innerHTML += `[${t}] ${msg}<br>`; logEl.scrollTop = logEl.scrollHeight; }
+    function setStatus(s){ $('#status').textContent=s; }
+    function setRole(s){ $('#role').textContent = 'role: '+s; }
+    function setId(s){ $('#myId').textContent = 'id: '+s; }
 
-    let pc, localStream, roomRef, isCaller=false, myId=Math.random().toString(36).slice(2);
+    // ====== Globals ======
+    let userPeer, lobbyPeer, lobbyConn; // PeerJS objects
+    let localStream, currentCall, partnerId;
+    let isLobby = false;
+    const waitingQueue = []; // only used if we are lobby
 
-    const rtcConfig = {
-      iceServers:[{urls:['stun:stun.l.google.com:19302','stun:stun1.l.google.com:19302']}]
-      // TIP: add TURN here later for better connectivity
-    };
-
+    // ====== Media ======
     async function getMedia(){
       if(localStream) return localStream;
-      localStream = await navigator.mediaDevices.getUserMedia({video:true,audio:true});
-      $('#localVideo').srcObject = localStream; return localStream;
+      try {
+        localStream = await navigator.mediaDevices.getUserMedia({ video:true, audio:true });
+        $('#localVideo').srcObject = localStream;
+        return localStream;
+      } catch(e){ log('Camera/Mic error: '+e.message); throw e; }
     }
 
-    function createPC(){
-      pc = new RTCPeerConnection(rtcConfig);
-      localStream.getTracks().forEach(t=>pc.addTrack(t, localStream));
-      pc.ontrack = (e)=>{ $('#remoteVideo').srcObject = e.streams[0]; };
-      pc.onicecandidate = (e)=>{ if(e.candidate && roomRef){ roomRef.child('candidates').push({from:myId,candidate:e.candidate.toJSON()}); } };
-      pc.onconnectionstatechange = ()=>{ log('State: '+pc.connectionState); if(pc.connectionState==='connected'){ setStatus('connected'); $('#nextBtn').disabled=false; $('#endBtn').disabled=false; } };
-      return pc;
+    function stopMedia(){ if(!localStream) return; localStream.getTracks().forEach(t=>t.stop()); localStream=null; $('#localVideo').srcObject=null; }
+
+    // ====== Start flow ======
+    async function start(){
+      $('#startBtn').disabled = true; setStatus('starting…');
+      await getMedia();
+
+      // Create our main user peer with random id
+      userPeer = new Peer(undefined, peerOpts);
+
+      userPeer.on('open', id => {
+        setId(id); log('User peer open: '+id);
+        $('#endBtn').disabled = false;
+        tryBecomeLobby(); // attempt to become lobby
+      });
+
+      userPeer.on('error', err => { log('User peer error: '+err.type+': '+err.message); });
+
+      // Handle incoming media call from partner
+      userPeer.on('call', call => {
+        log('Incoming call from '+call.peer);
+        call.on('stream', stream => { $('#remoteVideo').srcObject = stream; setStatus('connected'); $('#nextBtn').disabled=false; });
+        call.on('close', ()=>{ log('Call closed'); $('#remoteVideo').srcObject=null; });
+        call.answer(localStream);
+        currentCall = call; partnerId = call.peer;
+      });
     }
 
-    async function makeOffer(){
-      const offer = await pc.createOffer();
-      await pc.setLocalDescription(offer);
-      await roomRef.child('offer').set({type:offer.type,sdp:offer.sdp});
+    // ====== Lobby logic ======
+    function tryBecomeLobby(){
+      // Try to take the fixed lobby ID. If it fails, we are a client and will connect to the lobby.
+      lobbyPeer = new Peer(LOBBY_ID, peerOpts);
+
+      lobbyPeer.on('open', id => {
+        // We succeeded in owning the lobby ID → act as lobby server
+        isLobby = true; setRole('lobby'); log('This tab is the lobby server');
+        bindLobbyHandlers();
+      });
+
+      lobbyPeer.on('error', err => {
+        if(err.type === 'unavailable-id' || /ID is taken/.test(err.message)){
+          // Lobby already exists → connect to it as a client
+          setRole('client');
+          connectToLobby();
+        } else {
+          log('Lobby peer error: '+err.type+': '+err.message);
+          // Still try to function as client
+          setRole('client'); connectToLobby();
+        }
+      });
     }
 
-    async function joinWithOffer(offer){
-      await pc.setRemoteDescription(new RTCSessionDescription(offer));
-      const answer = await pc.createAnswer();
-      await pc.setLocalDescription(answer);
-      await roomRef.child('answer').set({type:answer.type,sdp:answer.sdp});
+    function bindLobbyHandlers(){
+      // Accept data connections from clients who want to register for matchmaking
+      lobbyPeer.on('connection', conn => {
+        log('Lobby: client connected '+conn.peer);
+        conn.on('data', data => {
+          if(!data || !data.type) return;
+          if(data.type === 'register'){
+            // place into queue
+            waitingQueue.push(conn.peer);
+            log('Lobby: queued '+conn.peer+' (size='+waitingQueue.length+')');
+            attemptPair();
+          }
+        });
+      });
     }
 
-    function listenSignals(){
-      roomRef.child('offer').on('value',async snap=>{ const v=snap.val(); if(!v||isCaller) return; log('Got offer'); await joinWithOffer(v); });
-      roomRef.child('answer').on('value',async snap=>{ const v=snap.val(); if(!v||!isCaller) return; log('Got answer'); await pc.setRemoteDescription(new RTCSessionDescription(v)); });
-      roomRef.child('candidates').on('child_added',async snap=>{ const c=snap.val(); if(!c||c.from===myId) return; try{ await pc.addIceCandidate(new RTCIceCandidate(c.candidate)); }catch(e){ log('ICE add error '+e.message); } });
-    }
-
-    async function match(){
-      setStatus('matching…');
-      const qRef = db.ref('queue/waiting');
-      const result = await qRef.transaction(cur=>cur?null:{id:myId,ts:Date.now()});
-      const snap = await qRef.get();
-      if(snap.exists() && snap.val().id===myId){
-        // we are the waiter
-        const rid = `room_${myId}_${Math.random().toString(36).slice(2)}`;
-        await db.ref(`waitingRooms/${myId}`).set({roomId:rid,createdAt:Date.now()});
-        isCaller=true; return rid;
-      } else {
-        // we matched someone waiting
-        const list = await db.ref('waitingRooms').limitToFirst(1).get();
-        let rid=null, partner=null; list.forEach(ch=>{ rid=ch.val().roomId; partner=ch.key; });
-        if(rid){ db.ref(`waitingRooms/${partner}`).remove(); }
-        return rid || `room_${myId}_${Math.random().toString(36).slice(2)}`;
+    function attemptPair(){
+      while(waitingQueue.length >= 2){
+        const a = waitingQueue.shift();
+        const b = waitingQueue.shift();
+        // notify both to connect with each other
+        const ca = lobbyPeer.connect(a); ca.on('open', ()=>{ ca.send({ type:'match', partner:b }); ca.close(); });
+        const cb = lobbyPeer.connect(b); cb.on('open', ()=>{ cb.send({ type:'match', partner:a }); cb.close(); });
+        log('Lobby: paired '+a+' ↔ '+b);
       }
     }
 
-    async function start(){
-      $('#startBtn').disabled=true; setStatus('starting…');
-      await getMedia(); createPC();
-      const roomId = await match();
-      roomRef = db.ref('rooms').child(roomId); listenSignals();
-      if(isCaller){ log('Creating offer…'); await makeOffer(); } else { log('Waiting for offer…'); }
+    function connectToLobby(){
+      if(lobbyConn && lobbyConn.open) lobbyConn.close();
+      lobbyConn = userPeer.connect(LOBBY_ID);
+      lobbyConn.on('open', () => {
+        log('Connected to lobby');
+        lobbyConn.send({ type:'register' });
+      });
+      lobbyConn.on('data', data => {
+        if(data && data.type === 'match' && data.partner){
+          partnerId = data.partner;
+          log('Matched with '+partnerId);
+          startCallToPartner();
+        }
+      });
+      lobbyConn.on('error', e => log('Lobby conn error: '+e.message));
+      lobbyConn.on('close', ()=>{ log('Lobby connection closed'); });
     }
 
-    async function next(){ await end(true); $('#startBtn').disabled=true; await start(); }
+    // ====== Call handling ======
+    function startCallToPartner(){
+      if(!partnerId){ log('No partner id'); return; }
+      const call = userPeer.call(partnerId, localStream);
+      call.on('stream', stream => { $('#remoteVideo').srcObject = stream; setStatus('connected'); $('#nextBtn').disabled=false; });
+      call.on('close', ()=>{ log('Call closed'); $('#remoteVideo').srcObject=null; });
+      call.on('error', e=> log('Call error: '+e.message));
+      currentCall = call;
+    }
+
+    async function next(){
+      await end(true); // keep media
+      $('#startBtn').disabled = true;
+      // Re-register to lobby for another match
+      if(isLobby){ setStatus('waiting (lobby)'); }
+      else { setStatus('matching…'); connectToLobby(); }
+    }
 
     async function end(keepMedia=false){
-      setStatus('idle'); $('#nextBtn').disabled=true; $('#endBtn').disabled=true; $('#startBtn').disabled=false;
-      try{ if(roomRef){ roomRef.remove(); roomRef.off(); } }catch{}
-      try{ if(pc){ pc.getSenders().forEach(s=>{ try{s.track&&s.track.stop()}catch{} }); pc.close(); } }catch{}
-      if(!keepMedia && localStream){ localStream.getTracks().forEach(t=>t.stop()); localStream=null; $('#localVideo').srcObject=null; }
-      $('#remoteVideo').srcObject=null; isCaller=false;
+      setStatus('idle'); $('#nextBtn').disabled=true; $('#endBtn').disabled=false; $('#startBtn').disabled=false;
+      try{ if(currentCall){ currentCall.close(); currentCall=null; } }catch{}
+      $('#remoteVideo').srcObject=null; partnerId=null;
+      if(!keepMedia){ stopMedia(); }
     }
 
-    // UI
+    // ====== UI ======
     $('#startBtn').onclick = start;
     $('#nextBtn').onclick = next;
     $('#endBtn').onclick = ()=>end(false);
     $('#muteBtn').onclick = ()=>{ if(!localStream) return; const a=localStream.getAudioTracks(); a.forEach(t=>t.enabled=!t.enabled); $('#muteBtn').textContent=(a[0]&&a[0].enabled)?'Mute':'Unmute'; };
     $('#camBtn').onclick = ()=>{ if(!localStream) return; const v=localStream.getVideoTracks(); v.forEach(t=>t.enabled=!t.enabled); $('#camBtn').textContent=(v[0]&&v[0].enabled)?'Camera Off':'Camera On'; };
 
-    // Clean up
-    window.addEventListener('beforeunload',()=>{ try{ if(roomRef) roomRef.remove(); }catch{} });
+    // Cleanup on page unload
+    window.addEventListener('beforeunload', ()=>{ try{ if(currentCall) currentCall.close(); if(lobbyConn) lobbyConn.close(); if(userPeer) userPeer.destroy(); if(lobbyPeer) lobbyPeer.destroy(); }catch{} });
   </script>
 </body>
 </html>
