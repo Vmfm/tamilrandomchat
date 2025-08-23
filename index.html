@@ -3,7 +3,7 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>Random Video Chat — PeerJS (No Firebase)</title>
+  <title>Random Video Chat — GitHub Pages (PeerJS, no signup)</title>
   <style>
     body{margin:0;font-family:system-ui,Segoe UI,Roboto,Helvetica,Arial,sans-serif;background:#0b0b0f;color:#eaeaf0}
     .wrap{max-width:900px;margin:0 auto;padding:16px}
@@ -17,28 +17,26 @@
     .btn.primary{background:#5b8cff}
     .btn.danger{background:#ff5b6e;color:#000}
     .hint{opacity:.7;font-size:12px}
-    #log{height:110px;overflow:auto;background:#0f1017;border:1px solid #22232b;border-radius:10px;padding:8px;font-size:12px}
+    #log{height:120px;overflow:auto;background:#0f1017;border:1px solid #22232b;border-radius:10px;padding:8px;font-size:12px}
     .badge{font-size:12px;padding:2px 8px;border-radius:999px;background:#0b6b37;color:#d6ffe9;border:1px solid #0a5b2f}
     .pill{font-size:12px;padding:2px 8px;border-radius:999px;background:#1e1f28;color:#cbd3dc;border:1px solid #272836}
   </style>
 </head>
 <body>
   <!--
-    ZERO BACKEND / ZERO FIREBASE VERSION (PeerJS)
+    LIVE RANDOM VIDEO CHAT — GITHUB PAGES ONLY
+    • No Firebase, no backend. Uses PeerJS public signaling (0.peerjs.com).
+    • First tab that loads becomes a tiny in-browser "lobby" (fixed id). Others join & get paired randomly.
+    • If the public server is busy, this code auto-retries with backoff.
 
-    How it works:
-    - Uses PeerJS Cloud signaling (no account required) for WebRTC handshakes.
-    - One tab may become a lightweight "lobby server" (in-browser) using a fixed Peer ID.
-    - Others connect to the lobby and get paired randomly.
-
-    Deploy on GitHub Pages:
-    1) Save this file as index.html in a repo → Settings → Pages → deploy from main.
-    2) Open the Pages URL on two devices/browsers to test.
+    Deploy:
+      1) Save as index.html → push to GitHub repo.
+      2) Repo → Settings → Pages → deploy from main (root).
+      3) Open your Pages URL on two devices.
 
     Notes:
-    - HTTPS is required (GitHub Pages provides this).
-    - Free PeerJS Cloud has limits; fine for testing/small usage.
-    - Without TURN servers, some networks may fail to connect. You can add TURN later.
+      • HTTPS required (GitHub Pages gives it).
+      • Some strict networks may still fail without a TURN server (normal for pure free setup).
   -->
   <div class="wrap">
     <div class="row" style="justify-content:space-between">
@@ -79,14 +77,14 @@
     // ====== CONFIG ======
     const LOBBY_ID = 'tvm-lobby-1'; // fixed ID for the in-browser lobby
     const peerOpts = {
-      host: 'peerjs.com',
+      host: '0.peerjs.com', // more stable public host
       port: 443,
+      path: '/',
       secure: true,
-      debug: 2,
-      // Provide ICE servers (add your TURN later if needed)
+      debug: 1,
       config: { iceServers: [
-        { urls: ['stun:stun.l.google.com:19302','stun:stun1.l.google.com:19302'] },
-        // { urls: 'turn:YOUR_TURN_SERVER', username: 'user', credential: 'pass' }
+        { urls: ['stun:stun.l.google.com:19302','stun:stun1.l.google.com:19302'] }
+        // Add your TURN server here later for 100% reliability
       ]}
     };
 
@@ -116,64 +114,74 @@
 
     function stopMedia(){ if(!localStream) return; localStream.getTracks().forEach(t=>t.stop()); localStream=null; $('#localVideo').srcObject=null; }
 
+    // ====== Resilient Peer creator with backoff ======
+    function createPeer(id, opts, onOpen, onError){
+      let attempt = 0;
+      const maxAttempts = 5;
+      function tryConnect(){
+        attempt++;
+        const p = new Peer(id, opts);
+        p.on('open', pid=> onOpen && onOpen(p, pid));
+        p.on('error', err => {
+          log((id? 'Peer('+id+')':'Peer')+' error: '+err.type+': '+err.message);
+          if(attempt < maxAttempts && (err.type==='server-error' || err.type==='socket-error' || err.type==='network')){
+            const delay = Math.min(1000 * Math.pow(2, attempt-1), 8000);
+            log('Retrying in '+(delay/1000)+'s…');
+            setTimeout(tryConnect, delay);
+          } else { onError && onError(err); }
+        });
+        return p;
+      }
+      return tryConnect();
+    }
+
     // ====== Start flow ======
     async function start(){
       $('#startBtn').disabled = true; setStatus('starting…');
       await getMedia();
 
       // Create our main user peer with random id
-      userPeer = new Peer(undefined, peerOpts);
-
-      userPeer.on('open', id => {
-        setId(id); log('User peer open: '+id);
+      userPeer = createPeer(undefined, peerOpts, (p, id)=>{
+        userPeer = p; setId(id); log('User peer open: '+id);
         $('#endBtn').disabled = false;
-        tryBecomeLobby(); // attempt to become lobby
-      });
-
-      userPeer.on('error', err => { log('User peer error: '+err.type+': '+err.message); });
+        tryBecomeLobby();
+      }, (err)=>{ log('Failed to init user peer. Please reload.'); $('#startBtn').disabled=false; setStatus('idle'); });
 
       // Handle incoming media call from partner
-      userPeer.on('call', call => {
-        log('Incoming call from '+call.peer);
-        call.on('stream', stream => { $('#remoteVideo').srcObject = stream; setStatus('connected'); $('#nextBtn').disabled=false; });
-        call.on('close', ()=>{ log('Call closed'); $('#remoteVideo').srcObject=null; });
-        call.answer(localStream);
-        currentCall = call; partnerId = call.peer;
-      });
+      // (We rebind each time we successfully open)
+      function bindUserHandlers(){
+        if(!userPeer) return;
+        userPeer.on('call', call => {
+          log('Incoming call from '+call.peer);
+          call.on('stream', stream => { $('#remoteVideo').srcObject = stream; setStatus('connected'); $('#nextBtn').disabled=false; });
+          call.on('close', ()=>{ log('Call closed'); $('#remoteVideo').srcObject=null; });
+          call.answer(localStream);
+          currentCall = call; partnerId = call.peer;
+        });
+      }
+      setTimeout(bindUserHandlers, 500);
     }
 
     // ====== Lobby logic ======
     function tryBecomeLobby(){
-      // Try to take the fixed lobby ID. If it fails, we are a client and will connect to the lobby.
-      lobbyPeer = new Peer(LOBBY_ID, peerOpts);
-
-      lobbyPeer.on('open', id => {
+      lobbyPeer = createPeer(LOBBY_ID, peerOpts, (p, id)=>{
         // We succeeded in owning the lobby ID → act as lobby server
-        isLobby = true; setRole('lobby'); log('This tab is the lobby server');
-        bindLobbyHandlers();
-      });
-
-      lobbyPeer.on('error', err => {
-        if(err.type === 'unavailable-id' || /ID is taken/.test(err.message)){
-          // Lobby already exists → connect to it as a client
-          setRole('client');
-          connectToLobby();
-        } else {
-          log('Lobby peer error: '+err.type+': '+err.message);
-          // Still try to function as client
-          setRole('client'); connectToLobby();
-        }
+        isLobby = true; lobbyPeer = p; setRole('lobby'); log('This tab is the lobby server');
+        bindLobbyHandlers(); setStatus('waiting (lobby)');
+      }, ()=>{
+        // Lobby id is taken → connect to it as a client
+        setRole('client'); connectToLobby();
       });
     }
 
     function bindLobbyHandlers(){
+      if(!lobbyPeer) return;
       // Accept data connections from clients who want to register for matchmaking
       lobbyPeer.on('connection', conn => {
         log('Lobby: client connected '+conn.peer);
         conn.on('data', data => {
           if(!data || !data.type) return;
           if(data.type === 'register'){
-            // place into queue
             waitingQueue.push(conn.peer);
             log('Lobby: queued '+conn.peer+' (size='+waitingQueue.length+')');
             attemptPair();
@@ -194,10 +202,11 @@
     }
 
     function connectToLobby(){
+      if(!userPeer) return;
       if(lobbyConn && lobbyConn.open) lobbyConn.close();
       lobbyConn = userPeer.connect(LOBBY_ID);
       lobbyConn.on('open', () => {
-        log('Connected to lobby');
+        log('Connected to lobby'); setStatus('matching…');
         lobbyConn.send({ type:'register' });
       });
       lobbyConn.on('data', data => {
@@ -224,7 +233,6 @@
     async function next(){
       await end(true); // keep media
       $('#startBtn').disabled = true;
-      // Re-register to lobby for another match
       if(isLobby){ setStatus('waiting (lobby)'); }
       else { setStatus('matching…'); connectToLobby(); }
     }
