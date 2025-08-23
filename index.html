@@ -1,258 +1,120 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-  <meta charset="utf-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>Random Video Chat — GitHub Pages (PeerJS, no signup)</title>
+  <meta charset="UTF-8">
+  <title>Tamil VM - Random Video Chat</title>
   <style>
-    body{margin:0;font-family:system-ui,Segoe UI,Roboto,Helvetica,Arial,sans-serif;background:#0b0b0f;color:#eaeaf0}
-    .wrap{max-width:900px;margin:0 auto;padding:16px}
-    h1{font-size:18px;margin:0 0 8px}
-    .grid{display:grid;grid-template-columns:1fr;gap:10px}
-    @media(min-width:860px){.grid{grid-template-columns:1fr 1fr}}
-    video{width:100%;background:#000;aspect-ratio:16/9;border-radius:12px}
-    .card{background:#16161d;border:1px solid #252633;border-radius:16px;padding:12px}
-    .row{display:flex;align-items:center;gap:10px;flex-wrap:wrap}
-    .btn{border:0;padding:10px 12px;border-radius:12px;background:#2b2d3a;color:#fff;font-weight:600;cursor:pointer}
-    .btn.primary{background:#5b8cff}
-    .btn.danger{background:#ff5b6e;color:#000}
-    .hint{opacity:.7;font-size:12px}
-    #log{height:120px;overflow:auto;background:#0f1017;border:1px solid #22232b;border-radius:10px;padding:8px;font-size:12px}
-    .badge{font-size:12px;padding:2px 8px;border-radius:999px;background:#0b6b37;color:#d6ffe9;border:1px solid #0a5b2f}
-    .pill{font-size:12px;padding:2px 8px;border-radius:999px;background:#1e1f28;color:#cbd3dc;border:1px solid #272836}
+    body { font-family: Arial, sans-serif; text-align: center; background: #111; color: #fff; }
+    video { width: 45%; margin: 10px; border: 2px solid #444; border-radius: 10px; }
+    button { padding: 10px 20px; margin: 10px; border: none; border-radius: 6px; font-size: 16px; cursor: pointer; }
+    #controls { margin-top: 20px; }
   </style>
+  <script src="https://unpkg.com/peerjs@1.5.2/dist/peerjs.min.js"></script>
 </head>
 <body>
-  <!--
-    LIVE RANDOM VIDEO CHAT — GITHUB PAGES ONLY
-    • No Firebase, no backend. Uses PeerJS public signaling (0.peerjs.com).
-    • First tab that loads becomes a tiny in-browser "lobby" (fixed id). Others join & get paired randomly.
-    • If the public server is busy, this code auto-retries with backoff.
-
-    Deploy:
-      1) Save as index.html → push to GitHub repo.
-      2) Repo → Settings → Pages → deploy from main (root).
-      3) Open your Pages URL on two devices.
-
-    Notes:
-      • HTTPS required (GitHub Pages gives it).
-      • Some strict networks may still fail without a TURN server (normal for pure free setup).
-  -->
-  <div class="wrap">
-    <div class="row" style="justify-content:space-between">
-      <h1>Random Video Chat</h1>
-      <div class="row">
-        <span id="status" class="badge">idle</span>
-        <span id="role" class="pill">role: client</span>
-        <span id="myId" class="pill">id: —</span>
-      </div>
-    </div>
-
-    <div class="grid">
-      <div class="card">
-        <div class="row" style="justify-content:space-between"><b>You</b><div class="row"><button class="btn" id="muteBtn">Mute</button><button class="btn" id="camBtn">Camera Off</button></div></div>
-        <video id="localVideo" playsinline autoplay muted></video>
-      </div>
-      <div class="card">
-        <b>Partner</b>
-        <div class="hint">Appears after matching</div>
-        <video id="remoteVideo" playsinline autoplay></video>
-      </div>
-    </div>
-
-    <div class="card" style="margin-top:10px">
-      <div class="row">
-        <button class="btn primary" id="startBtn">Start</button>
-        <button class="btn" id="nextBtn" disabled>Next</button>
-        <button class="btn danger" id="endBtn" disabled>End</button>
-      </div>
-      <div id="log" style="margin-top:10px"></div>
-    </div>
+  <h1>🎥 Tamil VM Random Video Chat</h1>
+  <video id="localVideo" autoplay muted playsinline></video>
+  <video id="remoteVideo" autoplay playsinline></video>
+  <div id="controls">
+    <button onclick="startChat()">Start</button>
+    <button onclick="nextPartner()">Next</button>
+    <button onclick="endChat()">End</button>
   </div>
 
-  <!-- PeerJS from CDN -->
-  <script src="https://unpkg.com/peerjs@1.5.2/dist/peerjs.min.js"></script>
+<script>
+let peer, conn, call;
+let localStream;
+let isLobby = false;
+const lobbyId = "tvm-lobby-1";
 
-  <script>
-    // ====== CONFIG ======
-    const LOBBY_ID = 'tvm-lobby-1'; // fixed ID for the in-browser lobby
-    const peerOpts = {
-      host: '0.peerjs.com', // more stable public host
-      port: 443,
-      path: '/',
-      secure: true,
-      debug: 1,
-      config: { iceServers: [
-        { urls: ['stun:stun.l.google.com:19302','stun:stun1.l.google.com:19302'] }
-        // Add your TURN server here later for 100% reliability
-      ]}
-    };
+// Create a random ID for normal users
+function randomId() {
+  return "user-" + Math.random().toString(36).substring(2, 10);
+}
 
-    // ====== UI helpers ======
-    const $ = (s)=>document.querySelector(s);
-    const logEl = $('#log');
-    function log(msg){ const t=new Date().toLocaleTimeString(); logEl.innerHTML += `[${t}] ${msg}<br>`; logEl.scrollTop = logEl.scrollHeight; }
-    function setStatus(s){ $('#status').textContent=s; }
-    function setRole(s){ $('#role').textContent = 'role: '+s; }
-    function setId(s){ $('#myId').textContent = 'id: '+s; }
+// Start Chat
+async function startChat() {
+  localStream = await navigator.mediaDevices.getUserMedia({ video: true, audio: true });
+  document.getElementById("localVideo").srcObject = localStream;
 
-    // ====== Globals ======
-    let userPeer, lobbyPeer, lobbyConn; // PeerJS objects
-    let localStream, currentCall, partnerId;
-    let isLobby = false;
-    const waitingQueue = []; // only used if we are lobby
+  // Try to become lobby first
+  peer = new Peer(lobbyId, { host: "0.peerjs.com", port: 443, path: "/" });
 
-    // ====== Media ======
-    async function getMedia(){
-      if(localStream) return localStream;
-      try {
-        localStream = await navigator.mediaDevices.getUserMedia({ video:true, audio:true });
-        $('#localVideo').srcObject = localStream;
-        return localStream;
-      } catch(e){ log('Camera/Mic error: '+e.message); throw e; }
+  peer.on("open", id => {
+    if (id === lobbyId) {
+      console.log("I am the Lobby");
+      isLobby = true;
+      runLobby();
     }
+  });
 
-    function stopMedia(){ if(!localStream) return; localStream.getTracks().forEach(t=>t.stop()); localStream=null; $('#localVideo').srcObject=null; }
-
-    // ====== Resilient Peer creator with backoff ======
-    function createPeer(id, opts, onOpen, onError){
-      let attempt = 0;
-      const maxAttempts = 5;
-      function tryConnect(){
-        attempt++;
-        const p = new Peer(id, opts);
-        p.on('open', pid=> onOpen && onOpen(p, pid));
-        p.on('error', err => {
-          log((id? 'Peer('+id+')':'Peer')+' error: '+err.type+': '+err.message);
-          if(attempt < maxAttempts && (err.type==='server-error' || err.type==='socket-error' || err.type==='network')){
-            const delay = Math.min(1000 * Math.pow(2, attempt-1), 8000);
-            log('Retrying in '+(delay/1000)+'s…');
-            setTimeout(tryConnect, delay);
-          } else { onError && onError(err); }
-        });
-        return p;
-      }
-      return tryConnect();
-    }
-
-    // ====== Start flow ======
-    async function start(){
-      $('#startBtn').disabled = true; setStatus('starting…');
-      await getMedia();
-
-      // Create our main user peer with random id
-      userPeer = createPeer(undefined, peerOpts, (p, id)=>{
-        userPeer = p; setId(id); log('User peer open: '+id);
-        $('#endBtn').disabled = false;
-        tryBecomeLobby();
-      }, (err)=>{ log('Failed to init user peer. Please reload.'); $('#startBtn').disabled=false; setStatus('idle'); });
-
-      // Handle incoming media call from partner
-      // (We rebind each time we successfully open)
-      function bindUserHandlers(){
-        if(!userPeer) return;
-        userPeer.on('call', call => {
-          log('Incoming call from '+call.peer);
-          call.on('stream', stream => { $('#remoteVideo').srcObject = stream; setStatus('connected'); $('#nextBtn').disabled=false; });
-          call.on('close', ()=>{ log('Call closed'); $('#remoteVideo').srcObject=null; });
-          call.answer(localStream);
-          currentCall = call; partnerId = call.peer;
-        });
-      }
-      setTimeout(bindUserHandlers, 500);
-    }
-
-    // ====== Lobby logic ======
-    function tryBecomeLobby(){
-      lobbyPeer = createPeer(LOBBY_ID, peerOpts, (p, id)=>{
-        // We succeeded in owning the lobby ID → act as lobby server
-        isLobby = true; lobbyPeer = p; setRole('lobby'); log('This tab is the lobby server');
-        bindLobbyHandlers(); setStatus('waiting (lobby)');
-      }, ()=>{
-        // Lobby id is taken → connect to it as a client
-        setRole('client'); connectToLobby();
+  // If ID taken → become normal user
+  peer.on("error", err => {
+    if (err.type === "unavailable-id") {
+      console.log("Lobby already exists, joining as user...");
+      peer = new Peer(randomId(), { host: "0.peerjs.com", port: 443, path: "/" });
+      peer.on("open", () => {
+        connectToLobby();
       });
-    }
-
-    function bindLobbyHandlers(){
-      if(!lobbyPeer) return;
-      // Accept data connections from clients who want to register for matchmaking
-      lobbyPeer.on('connection', conn => {
-        log('Lobby: client connected '+conn.peer);
-        conn.on('data', data => {
-          if(!data || !data.type) return;
-          if(data.type === 'register'){
-            waitingQueue.push(conn.peer);
-            log('Lobby: queued '+conn.peer+' (size='+waitingQueue.length+')');
-            attemptPair();
-          }
+      peer.on("call", incomingCall => {
+        incomingCall.answer(localStream);
+        incomingCall.on("stream", stream => {
+          document.getElementById("remoteVideo").srcObject = stream;
         });
       });
     }
+  });
+}
 
-    function attemptPair(){
-      while(waitingQueue.length >= 2){
-        const a = waitingQueue.shift();
-        const b = waitingQueue.shift();
-        // notify both to connect with each other
-        const ca = lobbyPeer.connect(a); ca.on('open', ()=>{ ca.send({ type:'match', partner:b }); ca.close(); });
-        const cb = lobbyPeer.connect(b); cb.on('open', ()=>{ cb.send({ type:'match', partner:a }); cb.close(); });
-        log('Lobby: paired '+a+' ↔ '+b);
-      }
-    }
+// Lobby Logic
+let users = [];
+function runLobby() {
+  peer.on("connection", c => {
+    console.log("User joined:", c.peer);
+    users.push(c.peer);
+    matchUsers();
+  });
+}
 
-    function connectToLobby(){
-      if(!userPeer) return;
-      if(lobbyConn && lobbyConn.open) lobbyConn.close();
-      lobbyConn = userPeer.connect(LOBBY_ID);
-      lobbyConn.on('open', () => {
-        log('Connected to lobby'); setStatus('matching…');
-        lobbyConn.send({ type:'register' });
+// Simple matchmaker: pairs two users and connects them
+function matchUsers() {
+  if (users.length >= 2) {
+    let u1 = users.shift();
+    let u2 = users.shift();
+    console.log("Matching:", u1, "with", u2);
+
+    let c1 = peer.connect(u1);
+    c1.on("open", () => { c1.send({ partner: u2 }); });
+
+    let c2 = peer.connect(u2);
+    c2.on("open", () => { c2.send({ partner: u1 }); });
+  }
+}
+
+// Normal User → connect to lobby
+function connectToLobby() {
+  conn = peer.connect(lobbyId);
+  conn.on("data", data => {
+    if (data.partner) {
+      console.log("Got partner:", data.partner);
+      let call = peer.call(data.partner, localStream);
+      call.on("stream", stream => {
+        document.getElementById("remoteVideo").srcObject = stream;
       });
-      lobbyConn.on('data', data => {
-        if(data && data.type === 'match' && data.partner){
-          partnerId = data.partner;
-          log('Matched with '+partnerId);
-          startCallToPartner();
-        }
-      });
-      lobbyConn.on('error', e => log('Lobby conn error: '+e.message));
-      lobbyConn.on('close', ()=>{ log('Lobby connection closed'); });
     }
+  });
+}
 
-    // ====== Call handling ======
-    function startCallToPartner(){
-      if(!partnerId){ log('No partner id'); return; }
-      const call = userPeer.call(partnerId, localStream);
-      call.on('stream', stream => { $('#remoteVideo').srcObject = stream; setStatus('connected'); $('#nextBtn').disabled=false; });
-      call.on('close', ()=>{ log('Call closed'); $('#remoteVideo').srcObject=null; });
-      call.on('error', e=> log('Call error: '+e.message));
-      currentCall = call;
-    }
-
-    async function next(){
-      await end(true); // keep media
-      $('#startBtn').disabled = true;
-      if(isLobby){ setStatus('waiting (lobby)'); }
-      else { setStatus('matching…'); connectToLobby(); }
-    }
-
-    async function end(keepMedia=false){
-      setStatus('idle'); $('#nextBtn').disabled=true; $('#endBtn').disabled=false; $('#startBtn').disabled=false;
-      try{ if(currentCall){ currentCall.close(); currentCall=null; } }catch{}
-      $('#remoteVideo').srcObject=null; partnerId=null;
-      if(!keepMedia){ stopMedia(); }
-    }
-
-    // ====== UI ======
-    $('#startBtn').onclick = start;
-    $('#nextBtn').onclick = next;
-    $('#endBtn').onclick = ()=>end(false);
-    $('#muteBtn').onclick = ()=>{ if(!localStream) return; const a=localStream.getAudioTracks(); a.forEach(t=>t.enabled=!t.enabled); $('#muteBtn').textContent=(a[0]&&a[0].enabled)?'Mute':'Unmute'; };
-    $('#camBtn').onclick = ()=>{ if(!localStream) return; const v=localStream.getVideoTracks(); v.forEach(t=>t.enabled=!t.enabled); $('#camBtn').textContent=(v[0]&&v[0].enabled)?'Camera Off':'Camera On'; };
-
-    // Cleanup on page unload
-    window.addEventListener('beforeunload', ()=>{ try{ if(currentCall) currentCall.close(); if(lobbyConn) lobbyConn.close(); if(userPeer) userPeer.destroy(); if(lobbyPeer) lobbyPeer.destroy(); }catch{} });
-  </script>
+// Buttons
+function nextPartner() {
+  endChat();
+  startChat();
+}
+function endChat() {
+  if (call) call.close();
+  if (conn) conn.close();
+  document.getElementById("remoteVideo").srcObject = null;
+}
+</script>
 </body>
 </html>
