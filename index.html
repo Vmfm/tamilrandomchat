@@ -1,62 +1,68 @@
 <!DOCTYPE html>
 <html>
 <head>
-  <title>PeerJS Video Chat</title>
+  <title>WebRTC Manual Video Chat</title>
   <style>
-    video {
-      width: 45%;
-      margin: 5px;
-      border: 2px solid #333;
-    }
+    video { width: 45%; margin: 10px; border: 1px solid #ccc; }
+    textarea { width: 90%; height: 100px; }
   </style>
 </head>
 <body>
-  <h2>Simple Video Chat (PeerJS)</h2>
+  <h2>Manual WebRTC Video Chat (No Server)</h2>
 
-  <p>Your ID: <span id="my-id">...</span></p>
-  <input id="peer-id-input" placeholder="Enter Peer ID to connect" />
-  <button onclick="startCall()">Call</button>
+  <video id="localVideo" autoplay muted playsinline></video>
+  <video id="remoteVideo" autoplay playsinline></video>
 
-  <br><br>
-  <video id="local-video" autoplay muted></video>
-  <video id="remote-video" autoplay></video>
+  <h3>Step 1: Create Offer</h3>
+  <button onclick="createOffer()">Generate Offer</button>
+  <textarea id="offer" readonly></textarea>
 
-  <!-- PeerJS CDN -->
-  <script src="https://unpkg.com/peerjs@1.4.7/dist/peerjs.min.js"></script>
+  <h3>Step 2: Paste Offer & Generate Answer</h3>
+  <textarea id="remoteOffer" placeholder="Paste remote offer here"></textarea>
+  <button onclick="createAnswer()">Generate Answer</button>
+  <textarea id="answer" readonly></textarea>
+
+  <h3>Step 3: Paste Answer</h3>
+  <textarea id="remoteAnswer" placeholder="Paste remote answer here"></textarea>
+  <button onclick="addAnswer()">Connect</button>
+
   <script>
-    const localVideo = document.getElementById("local-video");
-    const remoteVideo = document.getElementById("remote-video");
-    const peerIdInput = document.getElementById("peer-id-input");
-
     let localStream;
-    const peer = new Peer(); // Uses free peerjs public server
+    let pc = new RTCPeerConnection();
 
-    peer.on("open", (id) => {
-      document.getElementById("my-id").textContent = id;
+    const localVideo = document.getElementById('localVideo');
+    const remoteVideo = document.getElementById('remoteVideo');
+
+    navigator.mediaDevices.getUserMedia({ video: true, audio: true }).then(stream => {
+      localVideo.srcObject = stream;
+      stream.getTracks().forEach(track => pc.addTrack(track, stream));
     });
 
-    // Get media
-    navigator.mediaDevices.getUserMedia({ video: true, audio: true })
-      .then((stream) => {
-        localStream = stream;
-        localVideo.srcObject = stream;
-      });
+    pc.ontrack = event => {
+      remoteVideo.srcObject = event.streams[0];
+    };
 
-    // Answer incoming calls
-    peer.on("call", (call) => {
-      call.answer(localStream);
-      call.on("stream", (remoteStream) => {
-        remoteVideo.srcObject = remoteStream;
-      });
-    });
+    pc.onicecandidate = event => {
+      if (event.candidate) return;
+      document.getElementById('offer').value = JSON.stringify(pc.localDescription);
+      document.getElementById('answer').value = JSON.stringify(pc.localDescription);
+    };
 
-    function startCall() {
-      const peerId = peerIdInput.value;
-      if (!peerId) return alert("Enter Peer ID to call");
-      const call = peer.call(peerId, localStream);
-      call.on("stream", (remoteStream) => {
-        remoteVideo.srcObject = remoteStream;
-      });
+    async function createOffer() {
+      const offer = await pc.createOffer();
+      await pc.setLocalDescription(offer);
+    }
+
+    async function createAnswer() {
+      const remoteOffer = JSON.parse(document.getElementById('remoteOffer').value);
+      await pc.setRemoteDescription(remoteOffer);
+      const answer = await pc.createAnswer();
+      await pc.setLocalDescription(answer);
+    }
+
+    async function addAnswer() {
+      const remoteAnswer = JSON.parse(document.getElementById('remoteAnswer').value);
+      await pc.setRemoteDescription(remoteAnswer);
     }
   </script>
 </body>
