@@ -1,68 +1,96 @@
 <!DOCTYPE html>
 <html>
 <head>
-  <title>WebRTC Manual Video Chat</title>
+  <title>Random Video Chat (GitHub Pages)</title>
   <style>
+    body { font-family: sans-serif; text-align: center; }
     video { width: 45%; margin: 10px; border: 1px solid #ccc; }
-    textarea { width: 90%; height: 100px; }
   </style>
 </head>
 <body>
-  <h2>Manual WebRTC Video Chat (No Server)</h2>
-
+  <h2>🔀 Random Video Chat</h2>
+  <p>Status: <span id="status">Waiting for match...</span></p>
   <video id="localVideo" autoplay muted playsinline></video>
   <video id="remoteVideo" autoplay playsinline></video>
 
-  <h3>Step 1: Create Offer</h3>
-  <button onclick="createOffer()">Generate Offer</button>
-  <textarea id="offer" readonly></textarea>
-
-  <h3>Step 2: Paste Offer & Generate Answer</h3>
-  <textarea id="remoteOffer" placeholder="Paste remote offer here"></textarea>
-  <button onclick="createAnswer()">Generate Answer</button>
-  <textarea id="answer" readonly></textarea>
-
-  <h3>Step 3: Paste Answer</h3>
-  <textarea id="remoteAnswer" placeholder="Paste remote answer here"></textarea>
-  <button onclick="addAnswer()">Connect</button>
+  <!-- PeerJS Library -->
+  <script src="https://unpkg.com/peerjs@1.4.7/dist/peerjs.min.js"></script>
 
   <script>
+    const localVideo = document.getElementById("localVideo");
+    const remoteVideo = document.getElementById("remoteVideo");
+    const statusText = document.getElementById("status");
+
     let localStream;
-    let pc = new RTCPeerConnection();
+    let peer;
+    let conn;
+    let call;
 
-    const localVideo = document.getElementById('localVideo');
-    const remoteVideo = document.getElementById('remoteVideo');
+    // Generate a random ID
+    const myId = "user-" + Math.floor(Math.random() * 1000000);
 
-    navigator.mediaDevices.getUserMedia({ video: true, audio: true }).then(stream => {
-      localVideo.srcObject = stream;
-      stream.getTracks().forEach(track => pc.addTrack(track, stream));
+    // In-memory waiting pool (simulated)
+    const peerListURL = "https://peerjs.com/peers"; // Just for fallback visual (not used)
+
+    // 1. Set up PeerJS
+    peer = new Peer(myId, {
+      host: "peerjs.com",
+      port: 443,
+      secure: true
     });
 
-    pc.ontrack = event => {
-      remoteVideo.srcObject = event.streams[0];
-    };
+    // 2. Get webcam
+    navigator.mediaDevices.getUserMedia({ video: true, audio: true }).then(stream => {
+      localVideo.srcObject = stream;
+      localStream = stream;
+    });
 
-    pc.onicecandidate = event => {
-      if (event.candidate) return;
-      document.getElementById('offer').value = JSON.stringify(pc.localDescription);
-      document.getElementById('answer').value = JSON.stringify(pc.localDescription);
-    };
+    // 3. Handle incoming calls
+    peer.on("call", incomingCall => {
+      statusText.textContent = "Matched! Receiving call...";
+      incomingCall.answer(localStream);
+      incomingCall.on("stream", remoteStream => {
+        remoteVideo.srcObject = remoteStream;
+      });
+    });
 
-    async function createOffer() {
-      const offer = await pc.createOffer();
-      await pc.setLocalDescription(offer);
+    // 4. Try to match with another peer after delay
+    peer.on("open", id => {
+      console.log("My ID:", id);
+      setTimeout(() => findRandomMatch(id), 2000);
+    });
+
+    // 5. Find random peer to connect with
+    function findRandomMatch(myId) {
+      fetch("https://0.peerjs.com/peers")
+        .then(res => res.json())
+        .then(peers => {
+          const availablePeers = peers.filter(pid => pid !== myId && pid.startsWith("user-"));
+          if (availablePeers.length === 0) {
+            statusText.textContent = "Waiting for match...";
+            setTimeout(() => findRandomMatch(myId), 3000);
+          } else {
+            const targetId = availablePeers[Math.floor(Math.random() * availablePeers.length)];
+            statusText.textContent = "Connecting to: " + targetId;
+            startCall(targetId);
+          }
+        }).catch(err => {
+          statusText.textContent = "Error finding peers. Retry...";
+          console.error(err);
+          setTimeout(() => findRandomMatch(myId), 3000);
+        });
     }
 
-    async function createAnswer() {
-      const remoteOffer = JSON.parse(document.getElementById('remoteOffer').value);
-      await pc.setRemoteDescription(remoteOffer);
-      const answer = await pc.createAnswer();
-      await pc.setLocalDescription(answer);
-    }
-
-    async function addAnswer() {
-      const remoteAnswer = JSON.parse(document.getElementById('remoteAnswer').value);
-      await pc.setRemoteDescription(remoteAnswer);
+    // 6. Start the call
+    function startCall(targetId) {
+      call = peer.call(targetId, localStream);
+      call.on("stream", remoteStream => {
+        statusText.textContent = "Connected to " + targetId;
+        remoteVideo.srcObject = remoteStream;
+      });
+      call.on("close", () => {
+        statusText.textContent = "Call ended.";
+      });
     }
   </script>
 </body>
