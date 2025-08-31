@@ -1,64 +1,63 @@
 <!DOCTYPE html>
-<html lang="en">
+<html>
 <head>
-<meta charset="UTF-8">
-<title>Random Video Chat</title>
-<script src="https://unpkg.com/peerjs@1.5.2/dist/peerjs.min.js"></script>
-<style>
-body { font-family: Arial; text-align:center; background:#111; color:#fff; }
-video { width:45%; margin:5px; border:2px solid #444; border-radius:10px; background:#000; }
-button, input { padding:8px 12px; margin:5px; border-radius:6px; font-size:14px; }
-</style>
+  <title>PeerJS Video Chat</title>
+  <style>
+    video {
+      width: 45%;
+      margin: 5px;
+      border: 2px solid #333;
+    }
+  </style>
 </head>
 <body>
-<h2>Random Video Chat (Manual ID)</h2>
-<input id="peerIdInput" placeholder="Enter partner ID">
-<br>
-<button onclick="init()">Start Local Video</button>
-<button onclick="callPeer()">Call Partner</button>
-<button onclick="endCall()">End Call</button>
-<br>
-<video id="localVideo" autoplay muted playsinline></video>
-<video id="remoteVideo" autoplay playsinline></video>
+  <h2>Simple Video Chat (PeerJS)</h2>
 
-<script>
-let localStream, call;
-let peer = new Peer(); // PeerJS cloud gives random ID
-peer.on('open', id => { alert('Your ID: ' + id); });
+  <p>Your ID: <span id="my-id">...</span></p>
+  <input id="peer-id-input" placeholder="Enter Peer ID to connect" />
+  <button onclick="startCall()">Call</button>
 
-navigator.mediaDevices.getUserMedia({ video:true, audio:true }).then(stream=>{
-  localStream = stream;
-  document.getElementById('localVideo').srcObject = stream;
-});
+  <br><br>
+  <video id="local-video" autoplay muted></video>
+  <video id="remote-video" autoplay></video>
 
-peer.on('call', incomingCall=>{
-  incomingCall.answer(localStream);
-  incomingCall.on('stream', stream=>{
-    document.getElementById('remoteVideo').srcObject = stream;
-  });
-});
+  <!-- PeerJS CDN -->
+  <script src="https://unpkg.com/peerjs@1.4.7/dist/peerjs.min.js"></script>
+  <script>
+    const localVideo = document.getElementById("local-video");
+    const remoteVideo = document.getElementById("remote-video");
+    const peerIdInput = document.getElementById("peer-id-input");
 
-function init() {
-  // just ensures local video is shown
-  if(localStream) document.getElementById('localVideo').srcObject = localStream;
-}
+    let localStream;
+    const peer = new Peer(); // Uses free peerjs public server
 
-function callPeer() {
-  const partnerId = document.getElementById('peerIdInput').value;
-  if(partnerId && localStream) {
-    call = peer.call(partnerId, localStream);
-    call.on('stream', stream=>{
-      document.getElementById('remoteVideo').srcObject = stream;
+    peer.on("open", (id) => {
+      document.getElementById("my-id").textContent = id;
     });
-  } else {
-    alert('Enter partner ID!');
-  }
-}
 
-function endCall() {
-  if(call) call.close();
-  document.getElementById('remoteVideo').srcObject = null;
-}
-</script>
+    // Get media
+    navigator.mediaDevices.getUserMedia({ video: true, audio: true })
+      .then((stream) => {
+        localStream = stream;
+        localVideo.srcObject = stream;
+      });
+
+    // Answer incoming calls
+    peer.on("call", (call) => {
+      call.answer(localStream);
+      call.on("stream", (remoteStream) => {
+        remoteVideo.srcObject = remoteStream;
+      });
+    });
+
+    function startCall() {
+      const peerId = peerIdInput.value;
+      if (!peerId) return alert("Enter Peer ID to call");
+      const call = peer.call(peerId, localStream);
+      call.on("stream", (remoteStream) => {
+        remoteVideo.srcObject = remoteStream;
+      });
+    }
+  </script>
 </body>
 </html>
