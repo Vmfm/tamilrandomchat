@@ -33,7 +33,7 @@
       document.getElementById('login').style.display = "none";
       document.getElementById('chat').style.display = "block";
 
-      socket = new WebSocket("wss://yourproject.glitch.me"); // <-- change to your Glitch URL
+      socket = new WebSocket("wss://vmfm.github.io/tamilrandomchat/"); // <-- change to your Glitch URL
 
       socket.onmessage = (event) => {
         const chatBox = document.getElementById("chat-box");
