@@ -1,96 +1,53 @@
 <!DOCTYPE html>
 <html>
 <head>
-  <title>Random Video Chat (GitHub Pages)</title>
+  <title>Guest Chat</title>
   <style>
-    body { font-family: sans-serif; text-align: center; }
-    video { width: 45%; margin: 10px; border: 1px solid #ccc; }
+    body { font-family: sans-serif; padding: 20px; background: #f0f0f0; }
+    #chat-box { border: 1px solid #ccc; height: 300px; overflow-y: scroll; background: white; padding: 10px; margin-bottom: 10px; }
+    #message { width: 80%; }
+    #send { width: 18%; }
   </style>
 </head>
 <body>
-  <h2>🔀 Random Video Chat</h2>
-  <p>Status: <span id="status">Waiting for match...</span></p>
-  <video id="localVideo" autoplay muted playsinline></video>
-  <video id="remoteVideo" autoplay playsinline></video>
+  <h2>Guest Chat Room</h2>
+  <div id="login">
+    <input type="text" id="nickname" placeholder="Enter your nickname" />
+    <button onclick="joinChat()">Join</button>
+  </div>
 
-  <!-- PeerJS Library -->
-  <script src="https://unpkg.com/peerjs@1.4.7/dist/peerjs.min.js"></script>
+  <div id="chat" style="display: none;">
+    <div id="chat-box"></div>
+    <input id="message" type="text" placeholder="Type a message" />
+    <button id="send" onclick="sendMessage()">Send</button>
+  </div>
 
   <script>
-    const localVideo = document.getElementById("localVideo");
-    const remoteVideo = document.getElementById("remoteVideo");
-    const statusText = document.getElementById("status");
+    let socket;
+    let nickname = "";
 
-    let localStream;
-    let peer;
-    let conn;
-    let call;
+    function joinChat() {
+      nickname = document.getElementById('nickname').value;
+      if (!nickname) return alert("Enter a nickname");
 
-    // Generate a random ID
-    const myId = "user-" + Math.floor(Math.random() * 1000000);
+      document.getElementById('login').style.display = "none";
+      document.getElementById('chat').style.display = "block";
 
-    // In-memory waiting pool (simulated)
-    const peerListURL = "https://peerjs.com/peers"; // Just for fallback visual (not used)
+      socket = new WebSocket("wss://yourproject.glitch.me"); // <-- change to your Glitch URL
 
-    // 1. Set up PeerJS
-    peer = new Peer(myId, {
-      host: "peerjs.com",
-      port: 443,
-      secure: true
-    });
-
-    // 2. Get webcam
-    navigator.mediaDevices.getUserMedia({ video: true, audio: true }).then(stream => {
-      localVideo.srcObject = stream;
-      localStream = stream;
-    });
-
-    // 3. Handle incoming calls
-    peer.on("call", incomingCall => {
-      statusText.textContent = "Matched! Receiving call...";
-      incomingCall.answer(localStream);
-      incomingCall.on("stream", remoteStream => {
-        remoteVideo.srcObject = remoteStream;
-      });
-    });
-
-    // 4. Try to match with another peer after delay
-    peer.on("open", id => {
-      console.log("My ID:", id);
-      setTimeout(() => findRandomMatch(id), 2000);
-    });
-
-    // 5. Find random peer to connect with
-    function findRandomMatch(myId) {
-      fetch("https://0.peerjs.com/peers")
-        .then(res => res.json())
-        .then(peers => {
-          const availablePeers = peers.filter(pid => pid !== myId && pid.startsWith("user-"));
-          if (availablePeers.length === 0) {
-            statusText.textContent = "Waiting for match...";
-            setTimeout(() => findRandomMatch(myId), 3000);
-          } else {
-            const targetId = availablePeers[Math.floor(Math.random() * availablePeers.length)];
-            statusText.textContent = "Connecting to: " + targetId;
-            startCall(targetId);
-          }
-        }).catch(err => {
-          statusText.textContent = "Error finding peers. Retry...";
-          console.error(err);
-          setTimeout(() => findRandomMatch(myId), 3000);
-        });
+      socket.onmessage = (event) => {
+        const chatBox = document.getElementById("chat-box");
+        chatBox.innerHTML += `<div>${event.data}</div>`;
+        chatBox.scrollTop = chatBox.scrollHeight;
+      };
     }
 
-    // 6. Start the call
-    function startCall(targetId) {
-      call = peer.call(targetId, localStream);
-      call.on("stream", remoteStream => {
-        statusText.textContent = "Connected to " + targetId;
-        remoteVideo.srcObject = remoteStream;
-      });
-      call.on("close", () => {
-        statusText.textContent = "Call ended.";
-      });
+    function sendMessage() {
+      const input = document.getElementById("message");
+      const text = input.value;
+      if (!text) return;
+      socket.send(nickname + ": " + text);
+      input.value = "";
     }
   </script>
 </body>
