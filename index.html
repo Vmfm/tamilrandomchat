@@ -2,61 +2,98 @@
 <html>
 <head>
   <meta charset="UTF-8">
-  <title>Simple PeerJS Video Chat</title>
+  <title>Random PeerJS Video Chat</title>
   <style>
-    body { font-family: Arial; text-align: center; }
+    body { font-family: sans-serif; text-align: center; margin-top: 20px; }
     video { width: 45%; margin: 10px; background: #000; }
-    input, button { padding: 5px; margin: 5px; }
+    button { padding: 10px 20px; margin: 10px; font-size: 16px; }
+    #my-id, #status { margin: 10px; font-weight: bold; }
   </style>
 </head>
 <body>
 
-  <h2>Simple PeerJS Video Chat</h2>
+  <h2>Random PeerJS Video Chat</h2>
 
-  <video id="my-video" autoplay muted playsinline></video>
-  <video id="peer-video" autoplay playsinline></video>
+  <video id="localVideo" autoplay muted playsinline></video>
+  <video id="remoteVideo" autoplay playsinline></video>
 
-  <p>Your ID: <span id="my-id">...</span></p>
-
-  <input id="peer-id" placeholder="Enter peer ID" />
-  <button onclick="connect()">Call</button>
+  <div>
+    <p>Your ID: <span id="my-id">...</span></p>
+    <p>Status: <span id="status">Waiting...</span></p>
+    <button onclick="startAsHost()">Start as Host</button>
+    <button onclick="startAsGuest()">Start as Guest</button>
+  </div>
 
   <script src="https://cdn.jsdelivr.net/npm/peerjs@1.4.7/dist/peerjs.min.js"></script>
   <script>
-    const myVideo = document.getElementById('my-video');
-    const peerVideo = document.getElementById('peer-video');
-    const peerIdInput = document.getElementById('peer-id');
-    const myIdDisplay = document.getElementById('my-id');
+    const localVideo = document.getElementById('localVideo');
+    const remoteVideo = document.getElementById('remoteVideo');
+    const myIdSpan = document.getElementById('my-id');
+    const statusSpan = document.getElementById('status');
 
-    let localStream;
+    let peer, localStream;
 
-    // 1. Get media
+    // Generate a random 6-digit ID
+    function generateRandomId() {
+      return 'peer-' + Math.floor(Math.random() * 1000000).toString().padStart(6, '0');
+    }
+
+    // Simulate a shared pool of random IDs (works only if both users use similar code)
+    const randomPool = [
+      'peer-123456',
+      'peer-234567',
+      'peer-345678',
+      'peer-456789',
+      'peer-567890',
+      'peer-678901',
+      'peer-789012',
+      'peer-890123',
+      'peer-901234'
+    ];
+
+    // Get media
     navigator.mediaDevices.getUserMedia({ video: true, audio: true }).then(stream => {
       localStream = stream;
-      myVideo.srcObject = stream;
+      localVideo.srcObject = stream;
     });
 
-    // 2. Create peer connection (random ID)
-    const peer = new Peer();
+    // Start as host: just wait for connection
+    function startAsHost() {
+      const myId = randomPool[Math.floor(Math.random() * randomPool.length)];
+      peer = new Peer(myId);
+      myIdSpan.textContent = myId;
+      statusSpan.textContent = 'Waiting for guest...';
 
-    peer.on('open', id => {
-      myIdDisplay.textContent = id;
-    });
-
-    // 3. When someone calls you
-    peer.on('call', call => {
-      call.answer(localStream);
-      call.on('stream', remoteStream => {
-        peerVideo.srcObject = remoteStream;
+      peer.on('call', call => {
+        call.answer(localStream);
+        statusSpan.textContent = 'Connected!';
+        call.on('stream', remoteStream => {
+          remoteVideo.srcObject = remoteStream;
+        });
       });
-    });
+    }
 
-    // 4. Connect to another peer
-    function connect() {
-      const otherPeerId = peerIdInput.value;
-      const call = peer.call(otherPeerId, localStream);
-      call.on('stream', remoteStream => {
-        peerVideo.srcObject = remoteStream;
+    // Start as guest: pick a random ID and call it
+    function startAsGuest() {
+      const myId = generateRandomId();
+      peer = new Peer(myId);
+      myIdSpan.textContent = myId;
+
+      peer.on('open', () => {
+        // Pick a random host ID from pool
+        const hostId = randomPool[Math.floor(Math.random() * randomPool.length)];
+        statusSpan.textContent = 'Trying to connect to ' + hostId + '...';
+
+        const call = peer.call(hostId, localStream);
+
+        call.on('stream', remoteStream => {
+          remoteVideo.srcObject = remoteStream;
+          statusSpan.textContent = 'Connected to host!';
+        });
+
+        call.on('error', err => {
+          statusSpan.textContent = 'Call failed: ' + err;
+        });
       });
     }
   </script>
