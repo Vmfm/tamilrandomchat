@@ -4,67 +4,109 @@
   <meta charset="UTF-8">
   <title>Random Video Chat</title>
   <style>
-    body { font-family: sans-serif; text-align: center; margin: 0; padding: 0; }
+    body { font-family: sans-serif; text-align: center; }
     video { width: 45%; margin: 1%; border: 1px solid #ccc; }
     #controls { margin: 1em; }
+    button { padding: 10px 20px; margin: 5px; }
   </style>
 </head>
 <body>
+  <h2>Random Video Chat</h2>
   <div id="controls">
-    <button id="newRoomBtn">Start/Join Random Room</button>
-    <p id="roomIdDisplay"></p>
+    <button id="startBtn">Start Chat</button>
+    <button id="nextBtn" disabled>Next</button>
+    <p id="statusText">Status: Idle</p>
   </div>
   <div id="videos">
-    <video id="localVideo" autoplay muted></video>
-    <video id="remoteVideo" autoplay></video>
+    <video id="localVideo" autoplay muted playsinline></video>
+    <video id="remoteVideo" autoplay playsinline></video>
   </div>
 
-  <!-- PeerJS Library -->
   <script src="https://unpkg.com/peerjs@1.5.5/dist/peerjs.min.js"></script>
   <script>
-    const btn = document.getElementById('newRoomBtn');
-    const roomIdDisplay = document.getElementById('roomIdDisplay');
+    const startBtn = document.getElementById('startBtn');
+    const nextBtn = document.getElementById('nextBtn');
+    const statusText = document.getElementById('statusText');
     const localVideo = document.getElementById('localVideo');
     const remoteVideo = document.getElementById('remoteVideo');
 
-    let peer, conn, call;
+    let peer, localStream, conn, call;
+    const knownPeers = [];
 
-    async function init(roomId) {
-      // Create or join peer session
-      peer = new Peer(roomId, { debug: 2 });
+    function generateId() {
+      return Math.random().toString(36).substring(2, 10);
+    }
 
-      // Show local video
-      const stream = await navigator.mediaDevices.getUserMedia({ video: true, audio: true });
-      localVideo.srcObject = stream;
+    function setStatus(msg) {
+      statusText.textContent = "Status: " + msg;
+    }
 
-      // When receiving a call
-      peer.on('call', incomingCall => {
-        incomingCall.answer(stream);
-        incomingCall.on('stream', remoteStream => {
-          remoteVideo.srcObject = remoteStream;
+    async function getMedia() {
+      localStream = await navigator.mediaDevices.getUserMedia({ video: true, audio: true });
+      localVideo.srcObject = localStream;
+    }
+
+    function cleanup() {
+      if (call) call.close();
+      if (conn) conn.close();
+      remoteVideo.srcObject = null;
+    }
+
+    async function initPeer() {
+      return new Promise((resolve) => {
+        const id = generateId();
+        peer = new Peer(id, { debug: 1 });
+
+        peer.on('open', () => {
+          knownPeers.push(id); // add self to known list
+          setStatus("Waiting for match...");
+          resolve(id);
         });
-      });
 
-      // When successfully connected to PeerServer
-      peer.on('open', id => {
-        roomIdDisplay.textContent = `Your Room ID: ${id}`;
-        
-        if (!call) {
-          const peerIdToCall = prompt("Enter Room ID to connect (leave blank to wait):");
-          if (peerIdToCall) {
-            call = peer.call(peerIdToCall, stream);
-            call.on('stream', remoteStream => {
-              remoteVideo.srcObject = remoteStream;
-            });
-          }
-        }
+        peer.on('call', incoming => {
+          call = incoming;
+          call.answer(localStream);
+          call.on('stream', remoteStream => {
+            remoteVideo.srcObject = remoteStream;
+            setStatus("Connected");
+          });
+        });
       });
     }
 
-    btn.onclick = () => {
-      const randomId = Math.random().toString(36).substr(2, 9);
-      init(randomId);
-      btn.disabled = true;
+    async function findAndConnect(id) {
+      // Try connecting to a known peer (excluding self)
+      const others = knownPeers.filter(pid => pid !== id);
+      if (others.length > 0) {
+        const randomTarget = others[Math.floor(Math.random() * others.length)];
+        setStatus("Trying to connect to: " + randomTarget);
+        call = peer.call(randomTarget, localStream);
+        call.on('stream', remoteStream => {
+          remoteVideo.srcObject = remoteStream;
+          setStatus("Connected");
+        });
+      } else {
+        setStatus("No one available. Waiting...");
+      }
+    }
+
+    async function startChat() {
+      cleanup();
+      await getMedia();
+      const myId = await initPeer();
+      await findAndConnect(myId);
+    }
+
+    startBtn.onclick = async () => {
+      startBtn.disabled = true;
+      nextBtn.disabled = false;
+      await startChat();
+    };
+
+    nextBtn.onclick = async () => {
+      cleanup();
+      peer.destroy();
+      await startChat();
     };
   </script>
 </body>
