@@ -100,3 +100,77 @@
 
 </body>
 </html>
+
+
+
+
+
+
+
+
+
+
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>Video Chat Role Selection</title>
+  <style>
+    body {
+      font-family: Arial, sans-serif;
+      text-align: center;
+      padding: 40px;
+    }
+    button {
+      padding: 10px 20px;
+      margin: 10px;
+      font-size: 16px;
+    }
+    .explanation {
+      margin-top: 30px;
+      text-align: left;
+      display: inline-block;
+    }
+    h2 {
+      margin-bottom: 10px;
+    }
+    p {
+      margin: 5px 0;
+    }
+  </style>
+</head>
+<body>
+
+  <h1>Choose Your Role</h1>
+
+  <!-- Buttons -->
+  <button onclick="startAsHost()">Start as Host</button>
+  <button onclick="startAsGuest()">Start as Guest</button>
+
+  <!-- Explanation Section -->
+  <div class="explanation">
+    <h2>English</h2>
+    <p><strong>Start as Host:</strong> Starts a new video chat room and waits for someone to join.</p>
+    <p><strong>Start as Guest:</strong> Joins an existing video chat room started by a host.</p>
+
+    <h2>தமிழ் (Tamil)</h2>
+    <p><strong>Start as Host:</strong> புதிய வீடியோ சேட் அறையை தொடங்கி ஒருவர் சேர காத்திருக்கும்.</p>
+    <p><strong>Start as Guest:</strong> ஏற்கனவே தொடங்கிய அறையில் நீங்கள் சேருவீர்கள்.</p>
+  </div>
+
+  <!-- Dummy JS functions -->
+  <script>
+    function startAsHost() {
+      alert("Starting as Host...");
+      // Add your host logic here
+    }
+
+    function startAsGuest() {
+      alert("Starting as Guest...");
+      // Add your guest logic here
+    }
+  </script>
+
+</body>
+</html>
+
