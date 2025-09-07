@@ -1,102 +1,54 @@
 <!DOCTYPE html>
 <html>
 <head>
-  <meta charset="UTF-8">
-  <title>Random PeerJS Video Chat</title>
+  <script src='https://cdn.scaledrone.com/scaledrone.min.js'></script>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width">
   <style>
-    body { font-family: sans-serif; text-align: center; margin-top: 20px; }
-    video { width: 45%; margin: 10px; background: #000; }
-    button { padding: 10px 20px; margin: 10px; font-size: 16px; }
-    #my-id, #status { margin: 10px; font-weight: bold; }
+    body {
+      background: #0098ff;
+      display: flex;
+      height: 100vh;
+      margin: 0;
+      align-items: center;
+      justify-content: center;
+      padding: 0 50px;
+      font-family: -apple-system, BlinkMacSystemFont, sans-serif;
+    }
+    video {
+      max-width: calc(50% - 100px);
+      margin: 0 50px;
+      box-sizing: border-box;
+      border-radius: 2px;
+      padding: 0;
+      background: white;
+    }
+    .copy {
+      position: fixed;
+      top: 10px;
+      left: 50%;
+      transform: translateX(-50%);
+      font-size: 16px;
+      color: white;
+    }
   </style>
 </head>
 <body>
-
-  <h2>Random Video Chat</h2>
-
-  <video id="localVideo" autoplay muted playsinline></video>
-  <video id="remoteVideo" autoplay playsinline></video>
-
-  <div>
-    <p>Your ID: <span id="my-id">...</span></p>
-    <p>Status: <span id="status">Waiting...</span></p>
-    <button onclick="startAsHost()">Start as Host</button>
-    <button onclick="startAsGuest()">Start as Guest</button>
-  </div>
-
-  <script src="https://cdn.jsdelivr.net/npm/peerjs@1.4.7/dist/peerjs.min.js"></script>
-  <script>
-    const localVideo = document.getElementById('localVideo');
-    const remoteVideo = document.getElementById('remoteVideo');
-    const myIdSpan = document.getElementById('my-id');
-    const statusSpan = document.getElementById('status');
-
-    let peer, localStream;
-
-    // Generate a random 6-digit ID
-    function generateRandomId() {
-      return 'peer-' + Math.floor(Math.random() * 1000000).toString().padStart(6, '0');
-    }
-
-    // Simulate a shared pool of random IDs (works only if both users use similar code)
-    const randomPool = [
-      'peer-123456',
-      'peer-234567',
-      'peer-345678',
-      'peer-456789',
-      'peer-567890',
-      'peer-678901',
-      'peer-789012',
-      'peer-890123',
-      'peer-901234'
-    ];
-
-    // Get media
-    navigator.mediaDevices.getUserMedia({ video: true, audio: true }).then(stream => {
-      localStream = stream;
-      localVideo.srcObject = stream;
-    });
-
-    // Start as host: just wait for connection
-    function startAsHost() {
-      const myId = randomPool[Math.floor(Math.random() * randomPool.length)];
-      peer = new Peer(myId);
-      myIdSpan.textContent = myId;
-      statusSpan.textContent = 'Waiting for guest...';
-
-      peer.on('call', call => {
-        call.answer(localStream);
-        statusSpan.textContent = 'Connected!';
-        call.on('stream', remoteStream => {
-          remoteVideo.srcObject = remoteStream;
-        });
-      });
-    }
-
-    // Start as guest: pick a random ID and call it
-    function startAsGuest() {
-      const myId = generateRandomId();
-      peer = new Peer(myId);
-      myIdSpan.textContent = myId;
-
-      peer.on('open', () => {
-        // Pick a random host ID from pool
-        const hostId = randomPool[Math.floor(Math.random() * randomPool.length)];
-        statusSpan.textContent = 'Trying to connect to ' + hostId + '...';
-
-        const call = peer.call(hostId, localStream);
-
-        call.on('stream', remoteStream => {
-          remoteVideo.srcObject = remoteStream;
-          statusSpan.textContent = 'Connected to host!';
-        });
-
-        call.on('error', err => {
-          statusSpan.textContent = 'Call failed: ' + err;
-        });
-      });
-    }
-  </script>
-
+  <div class="copy">Send your URL to a friend to start a video call</div>
+  <video id="localVideo" autoplay muted></video>
+  <video id="remoteVideo" autoplay></video>
+  <script src="script.js"></script>
 </body>
+</html>
+Take a few moments to walk through everything going on in this document. Once you've done that, let's walk through it together as well.
+
+First, we start by importing the scaledrone.min.js script which we will use for signaling:
+
+<!DOCTYPE html>
+<html>
+<head>
+  <script src='https://cdn.scaledrone.com/scaledrone.min.js'></script>
+   .
+   .
+   .
 </html>
