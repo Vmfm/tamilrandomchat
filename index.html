@@ -1,54 +1,71 @@
 <!DOCTYPE html>
-<html>
+<html lang="en">
 <head>
-  <script src='https://cdn.scaledrone.com/scaledrone.min.js'></script>
-  <meta charset="utf-8">
-  <meta name="viewport" content="width=device-width">
+  <meta charset="UTF-8">
+  <title>Random Video Chat</title>
   <style>
-    body {
-      background: #0098ff;
-      display: flex;
-      height: 100vh;
-      margin: 0;
-      align-items: center;
-      justify-content: center;
-      padding: 0 50px;
-      font-family: -apple-system, BlinkMacSystemFont, sans-serif;
-    }
-    video {
-      max-width: calc(50% - 100px);
-      margin: 0 50px;
-      box-sizing: border-box;
-      border-radius: 2px;
-      padding: 0;
-      background: white;
-    }
-    .copy {
-      position: fixed;
-      top: 10px;
-      left: 50%;
-      transform: translateX(-50%);
-      font-size: 16px;
-      color: white;
-    }
+    body { font-family: sans-serif; text-align: center; margin: 0; padding: 0; }
+    video { width: 45%; margin: 1%; border: 1px solid #ccc; }
+    #controls { margin: 1em; }
   </style>
 </head>
 <body>
-  <div class="copy">Send your URL to a friend to start a video call</div>
-  <video id="localVideo" autoplay muted></video>
-  <video id="remoteVideo" autoplay></video>
-  <script src="script.js"></script>
+  <div id="controls">
+    <button id="newRoomBtn">Start/Join Random Room</button>
+    <p id="roomIdDisplay"></p>
+  </div>
+  <div id="videos">
+    <video id="localVideo" autoplay muted></video>
+    <video id="remoteVideo" autoplay></video>
+  </div>
+
+  <!-- PeerJS Library -->
+  <script src="https://unpkg.com/peerjs@1.5.5/dist/peerjs.min.js"></script>
+  <script>
+    const btn = document.getElementById('newRoomBtn');
+    const roomIdDisplay = document.getElementById('roomIdDisplay');
+    const localVideo = document.getElementById('localVideo');
+    const remoteVideo = document.getElementById('remoteVideo');
+
+    let peer, conn, call;
+
+    async function init(roomId) {
+      // Create or join peer session
+      peer = new Peer(roomId, { debug: 2 });
+
+      // Show local video
+      const stream = await navigator.mediaDevices.getUserMedia({ video: true, audio: true });
+      localVideo.srcObject = stream;
+
+      // When receiving a call
+      peer.on('call', incomingCall => {
+        incomingCall.answer(stream);
+        incomingCall.on('stream', remoteStream => {
+          remoteVideo.srcObject = remoteStream;
+        });
+      });
+
+      // When successfully connected to PeerServer
+      peer.on('open', id => {
+        roomIdDisplay.textContent = `Your Room ID: ${id}`;
+        
+        if (!call) {
+          const peerIdToCall = prompt("Enter Room ID to connect (leave blank to wait):");
+          if (peerIdToCall) {
+            call = peer.call(peerIdToCall, stream);
+            call.on('stream', remoteStream => {
+              remoteVideo.srcObject = remoteStream;
+            });
+          }
+        }
+      });
+    }
+
+    btn.onclick = () => {
+      const randomId = Math.random().toString(36).substr(2, 9);
+      init(randomId);
+      btn.disabled = true;
+    };
+  </script>
 </body>
-</html>
-Take a few moments to walk through everything going on in this document. Once you've done that, let's walk through it together as well.
-
-First, we start by importing the scaledrone.min.js script which we will use for signaling:
-
-<!DOCTYPE html>
-<html>
-<head>
-  <script src='https://cdn.scaledrone.com/scaledrone.min.js'></script>
-   .
-   .
-   .
 </html>
