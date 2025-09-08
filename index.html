@@ -8,6 +8,7 @@
     video { width: 45%; margin: 10px; background: #000; }
     button { padding: 10px 20px; margin: 10px; font-size: 16px; }
     #my-id, #status { margin: 10px; font-weight: bold; }
+    .explanation { margin-top: 30px; text-align: left; display: inline-block; text-align: left; }
   </style>
 </head>
 <body>
@@ -22,96 +23,8 @@
     <p>Status: <span id="status">Waiting...</span></p>
     <button onclick="startAsHost()">Start as Host</button>
     <button onclick="startAsGuest()">Start as Guest</button>
+    <button onclick="findNextPartner()">Find Next Partner</button>
   </div>
-
-  <script src="https://cdn.jsdelivr.net/npm/peerjs@1.4.7/dist/peerjs.min.js"></script>
-  <script>
-    const localVideo = document.getElementById('localVideo');
-    const remoteVideo = document.getElementById('remoteVideo');
-    const myIdSpan = document.getElementById('my-id');
-    const statusSpan = document.getElementById('status');
-
-    let peer, localStream;
-
-    // Generate a random 6-digit ID
-    function generateRandomId() {
-      return 'peer-' + Math.floor(Math.random() * 1000000).toString().padStart(6, '0');
-    }
-
-    // Simulate a shared pool of random IDs (works only if both users use similar code)
-    const randomPool = [
-      'peer-123456',
-      'peer-234567',
-      'peer-345678',
-      'peer-456789',
-      'peer-567890',
-      'peer-678901',
-      'peer-789012',
-      'peer-890123',
-      'peer-901234'
-    ];
-
-    // Get media
-    navigator.mediaDevices.getUserMedia({ video: true, audio: true }).then(stream => {
-      localStream = stream;
-      localVideo.srcObject = stream;
-    });
-
-    // Start as host: just wait for connection
-    function startAsHost() {
-      const myId = randomPool[Math.floor(Math.random() * randomPool.length)];
-      peer = new Peer(myId);
-      myIdSpan.textContent = myId;
-      statusSpan.textContent = 'Waiting for guest...';
-
-      peer.on('call', call => {
-        call.answer(localStream);
-        statusSpan.textContent = 'Connected!';
-        call.on('stream', remoteStream => {
-          remoteVideo.srcObject = remoteStream;
-        });
-      });
-    }
-
-    // Start as guest: pick a random ID and call it
-    function startAsGuest() {
-      const myId = generateRandomId();
-      peer = new Peer(myId);
-      myIdSpan.textContent = myId;
-
-      peer.on('open', () => {
-        // Pick a random host ID from pool
-        const hostId = randomPool[Math.floor(Math.random() * randomPool.length)];
-        statusSpan.textContent = 'Trying to connect to ' + hostId + '...';
-
-        const call = peer.call(hostId, localStream);
-
-        call.on('stream', remoteStream => {
-          remoteVideo.srcObject = remoteStream;
-          statusSpan.textContent = 'Connected to host!';
-        });
-
-        call.on('error', err => {
-          statusSpan.textContent = 'Call failed: ' + err;
-        });
-      });
-    }
-  </script>
-
-</body>
-</html>
-
-
-
-
-
-
-<!DOCTYPE html>
-<html>
-<head>
-
-
-
 
   <!-- Explanation Section -->
   <div class="explanation">
@@ -124,8 +37,99 @@
     <p><strong>Start as Guest:</strong> ஏற்கனவே தொடங்கிய அறையில் நீங்கள் சேருவீர்கள்.</p>
   </div>
 
+  <script src="https://cdn.jsdelivr.net/npm/peerjs@1.4.7/dist/peerjs.min.js"></script>
+  <script>
+    const localVideo = document.getElementById('localVideo');
+    const remoteVideo = document.getElementById('remoteVideo');
+    const myIdSpan = document.getElementById('my-id');
+    const statusSpan = document.getElementById('status');
 
+    let peer, localStream, currentCall;
+    let lastRole = null; // Keep track of whether host or guest
+
+    const randomPool = [
+      'peer-123456', 'peer-234567', 'peer-345678',
+      'peer-456789', 'peer-567890', 'peer-678901',
+      'peer-789012', 'peer-890123', 'peer-901234'
+    ];
+
+    function generateRandomId() {
+      return 'peer-' + Math.floor(Math.random() * 1000000).toString().padStart(6, '0');
+    }
+
+    navigator.mediaDevices.getUserMedia({ video: true, audio: true }).then(stream => {
+      localStream = stream;
+      localVideo.srcObject = stream;
+    });
+
+    function startAsHost() {
+      cleanup();
+      lastRole = 'host';
+      const myId = randomPool[Math.floor(Math.random() * randomPool.length)];
+      peer = new Peer(myId);
+      myIdSpan.textContent = myId;
+      statusSpan.textContent = 'Waiting for guest...';
+
+      peer.on('call', call => {
+        currentCall = call;
+        call.answer(localStream);
+        statusSpan.textContent = 'Connected!';
+        call.on('stream', remoteStream => {
+          remoteVideo.srcObject = remoteStream;
+        });
+      });
+    }
+
+    function startAsGuest() {
+      cleanup();
+      lastRole = 'guest';
+      const myId = generateRandomId();
+      peer = new Peer(myId);
+      myIdSpan.textContent = myId;
+
+      peer.on('open', () => {
+        const hostId = randomPool[Math.floor(Math.random() * randomPool.length)];
+        statusSpan.textContent = 'Trying to connect to ' + hostId + '...';
+
+        const call = peer.call(hostId, localStream);
+        currentCall = call;
+
+        call.on('stream', remoteStream => {
+          remoteVideo.srcObject = remoteStream;
+          statusSpan.textContent = 'Connected to host!';
+        });
+
+        call.on('error', err => {
+          statusSpan.textContent = 'Call failed: ' + err;
+        });
+      });
+    }
+
+    // Cleanup before next connection
+    function cleanup() {
+      if (currentCall) {
+        currentCall.close();
+        currentCall = null;
+      }
+      if (peer) {
+        peer.destroy();
+        peer = null;
+      }
+      remoteVideo.srcObject = null;
+      statusSpan.textContent = 'Disconnected. Ready for next.';
+    }
+
+    // "Find Next Partner" logic
+    function findNextPartner() {
+      if (lastRole === 'host') {
+        startAsHost();
+      } else if (lastRole === 'guest') {
+        startAsGuest();
+      } else {
+        statusSpan.textContent = 'Please start as Host or Guest first.';
+      }
+    }
+  </script>
 
 </body>
 </html>
-
