@@ -72,15 +72,10 @@
     let usingFrontCamera = true; // Track which camera is being used
 
     const randomPool = [
-  'peer-123456', 'peer-234567', 'peer-345678',
-  'peer-456789', 'peer-567890', 'peer-678901',
-  'peer-789012', 'peer-890123', 'peer-901234',
-  'peer-111111', 'peer-222222', 'peer-333333',
-  'peer-444444', 'peer-555555', 'peer-666666',
-  'peer-777777', 'peer-888888', 'peer-999999',
-  'peer-000000'
-];
-
+      'peer-123456', 'peer-234567', 'peer-345678',
+      'peer-456789', 'peer-567890', 'peer-678901',
+      'peer-789012', 'peer-890123', 'peer-901234'
+    ];
 
     function generateRandomId() {
       return 'peer-' + Math.floor(Math.random() * 1000000).toString().padStart(6, '0');
