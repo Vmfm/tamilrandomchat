@@ -4,27 +4,76 @@
   <meta charset="UTF-8">
   <title>Random PeerJS Video Chat</title>
   <style>
-    body { font-family: sans-serif; text-align: center; margin-top: 20px; }
-    video { width: 45%; margin: 10px; background: #000; }
-    button { padding: 10px 20px; margin: 10px; font-size: 16px; }
-    #my-id, #status { margin: 10px; font-weight: bold; }
-    .explanation { margin-top: 30px; text-align: left; display: inline-block; text-align: left; }
-    #controls { margin-top: 10px; }
+    body {
+      font-family: sans-serif;
+      text-align: center;
+      margin-top: 20px;
+      background-color: #f4f4f4;
+    }
+
+    #videoContainer {
+      position: relative;
+      display: inline-block;
+      width: 90%;
+      max-width: 900px;
+      background: #000;
+      border-radius: 10px;
+      overflow: hidden;
+    }
+
+    #remoteVideo {
+      width: 100%;
+      height: auto;
+      background-color: black;
+    }
+
+    #localVideo {
+      position: absolute;
+      bottom: 15px;
+      right: 15px;
+      width: 25%;
+      max-width: 200px;
+      border: 2px solid white;
+      border-radius: 8px;
+      box-shadow: 0 0 10px rgba(0, 0, 0, 0.5);
+      z-index: 2;
+    }
+
     .fullscreen-btn {
       position: absolute;
       right: 15px;
       top: 15px;
-      z-index: 10;
+      z-index: 3;
       font-size: 20px;
-      background: rgba(0,0,0,0.5);
+      background: rgba(0, 0, 0, 0.5);
       color: white;
       border: none;
-      padding: 5px;
+      padding: 5px 10px;
+      cursor: pointer;
+      border-radius: 5px;
+    }
+
+    button {
+      padding: 10px 20px;
+      margin: 10px;
+      font-size: 16px;
       cursor: pointer;
     }
-    #remoteVideoContainer {
-      position: relative;
+
+    #my-id, #status {
+      margin: 10px;
+      font-weight: bold;
+    }
+
+    #controls {
+      margin-top: 20px;
+    }
+
+    .explanation {
+      margin-top: 30px;
+      text-align: left;
       display: inline-block;
+      max-width: 800px;
     }
   </style>
 </head>
@@ -32,14 +81,14 @@
 
   <h2>Random Video Chat</h2>
 
-  <video id="localVideo" autoplay muted playsinline></video>
-  
-  <!-- Remote video with fullscreen button -->
-  <div id="remoteVideoContainer">
-    <button class="fullscreen-btn" onclick="toggleFullScreen()">⛶</button>
+  <!-- Video Container -->
+  <div id="videoContainer">
     <video id="remoteVideo" autoplay playsinline></video>
+    <video id="localVideo" autoplay muted playsinline></video>
+    <button class="fullscreen-btn" onclick="toggleFullScreen()">⛶</button>
   </div>
 
+  <!-- Controls -->
   <div id="controls">
     <p>Your ID: <span id="my-id">...</span></p>
     <p>Status: <span id="status">Waiting...</span></p>
@@ -49,7 +98,7 @@
     <button onclick="toggleCamera()">Switch Camera</button>
   </div>
 
-  <!-- Explanation Section -->
+  <!-- Explanation -->
   <div class="explanation">
     <h2>English</h2>
     <p><strong>Start as Host:</strong> Starts a new video chat room and waits for someone to join.</p>
@@ -60,6 +109,7 @@
     <p><strong>Start as Guest:</strong> ஏற்கனவே தொடங்கிய அறையில் நீங்கள் சேருவீர்கள்.</p>
   </div>
 
+  <!-- PeerJS Script -->
   <script src="https://cdn.jsdelivr.net/npm/peerjs@1.4.7/dist/peerjs.min.js"></script>
   <script>
     const localVideo = document.getElementById('localVideo');
@@ -69,18 +119,24 @@
 
     let peer, localStream, currentCall;
     let lastRole = null;
-    let usingFrontCamera = true; // Track which camera is being used
+    let usingFrontCamera = true;
 
     const randomPool = [
       'peer-123456', 'peer-234567', 'peer-345678',
       'peer-456789', 'peer-567890', 'peer-678901',
-      'peer-789012', 'peer-890123', 'peer-901234'
+      'peer-789012', 'peer-890123', 'peer-901234',
+      'peer-111111', 'peer-222222', 'peer-333333',
+      'peer-444444', 'peer-555555', 'peer-666666',
+      'peer-777777', 'peer-888888', 'peer-999999',
+      'peer-000000'
     ];
 
+    // Generate random peer ID
     function generateRandomId() {
       return 'peer-' + Math.floor(Math.random() * 1000000).toString().padStart(6, '0');
     }
 
+    // Get user media with camera toggle
     async function getMediaStream(facingMode = 'user') {
       if (localStream) {
         localStream.getTracks().forEach(track => track.stop());
@@ -94,12 +150,12 @@
         localStream = stream;
         localVideo.srcObject = stream;
       } catch (err) {
-        console.error('Error getting media:', err);
+        console.error('Error accessing camera/mic:', err);
         alert('Camera access denied or unavailable.');
       }
     }
 
-    // Initial load with front camera
+    // Initial camera: front
     getMediaStream('user');
 
     function toggleCamera() {
@@ -174,12 +230,11 @@
       }
     }
 
-    // Fullscreen toggle for remote video
     function toggleFullScreen() {
-      const videoContainer = document.getElementById("remoteVideoContainer");
+      const videoContainer = document.getElementById("videoContainer");
       if (!document.fullscreenElement) {
         videoContainer.requestFullscreen().catch(err => {
-          alert(`Error attempting to enable full-screen mode: ${err.message}`);
+          alert(`Error enabling fullscreen: ${err.message}`);
         });
       } else {
         document.exitFullscreen();
