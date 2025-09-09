@@ -45,19 +45,39 @@
       top: 15px;
       z-index: 3;
       font-size: 20px;
-      background: rgba(0, 0, 0, 0.5);
+      background: rgba(0, 0, 0, 0.6);
       color: white;
       border: none;
-      padding: 5px 10px;
+      border-radius: 50%;
+      padding: 8px 12px;
       cursor: pointer;
-      border-radius: 5px;
+      transition: background-color 0.3s ease;
+    }
+
+    .fullscreen-btn:hover {
+      background: rgba(0, 0, 0, 0.8);
     }
 
     button {
       padding: 10px 20px;
       margin: 10px;
       font-size: 16px;
+      font-weight: bold;
+      color: white;
+      border: none;
+      border-radius: 30px;
       cursor: pointer;
+      transition: background-color 0.3s ease;
+    }
+
+    /* Colored buttons */
+    .btn-host       { background-color: #007bff; } /* Blue */
+    .btn-guest      { background-color: #28a745; } /* Green */
+    .btn-next       { background-color: #ffc107; color: black; } /* Yellow */
+    .btn-switch     { background-color: #6f42c1; } /* Purple */
+
+    button:hover {
+      filter: brightness(1.1);
     }
 
     #my-id, #status {
@@ -92,10 +112,10 @@
   <div id="controls">
     <p>Your ID: <span id="my-id">...</span></p>
     <p>Status: <span id="status">Waiting...</span></p>
-    <button onclick="startAsHost()">Start as Host</button>
-    <button onclick="startAsGuest()">Start as Guest</button>
-    <button onclick="findNextPartner()">Find Next Partner</button>
-    <button onclick="toggleCamera()">Switch Camera</button>
+    <button class="btn-host" onclick="startAsHost()">Start as Host</button>
+    <button class="btn-guest" onclick="startAsGuest()">Start as Guest</button>
+    <button class="btn-next" onclick="findNextPartner()">Find Next Partner</button>
+    <button class="btn-switch" onclick="toggleCamera()">Switch Camera</button>
   </div>
 
   <!-- Explanation -->
@@ -131,12 +151,10 @@
       'peer-000000'
     ];
 
-    // Generate random peer ID
     function generateRandomId() {
       return 'peer-' + Math.floor(Math.random() * 1000000).toString().padStart(6, '0');
     }
 
-    // Get user media with camera toggle
     async function getMediaStream(facingMode = 'user') {
       if (localStream) {
         localStream.getTracks().forEach(track => track.stop());
@@ -150,12 +168,12 @@
         localStream = stream;
         localVideo.srcObject = stream;
       } catch (err) {
-        console.error('Error accessing camera/mic:', err);
+        console.error('Error accessing media devices:', err);
         alert('Camera access denied or unavailable.');
       }
     }
 
-    // Initial camera: front
+    // Load default front camera
     getMediaStream('user');
 
     function toggleCamera() {
