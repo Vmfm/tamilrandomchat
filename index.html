@@ -26,10 +26,6 @@
       position: relative;
       display: inline-block;
     }
-    #camera-label {
-      font-weight: bold;
-      margin-top: 5px;
-    }
   </style>
 </head>
 <body>
@@ -47,14 +43,10 @@
   <div id="controls">
     <p>Your ID: <span id="my-id">...</span></p>
     <p>Status: <span id="status">Waiting...</span></p>
-    <p id="camera-label">Camera: Front</p>
-
     <button onclick="startAsHost()">Start as Host</button>
     <button onclick="startAsGuest()">Start as Guest</button>
     <button onclick="findNextPartner()">Find Next Partner</button>
     <button onclick="toggleCamera()">Switch Camera</button>
-    <button onclick="toggleMic()">Mute/Unmute Mic</button>
-    <button onclick="toggleVideo()">Video On/Off</button>
   </div>
 
   <!-- Explanation Section -->
@@ -74,17 +66,21 @@
     const remoteVideo = document.getElementById('remoteVideo');
     const myIdSpan = document.getElementById('my-id');
     const statusSpan = document.getElementById('status');
-    const cameraLabel = document.getElementById('camera-label');
 
     let peer, localStream, currentCall;
     let lastRole = null;
-    let usingFrontCamera = true;
+    let usingFrontCamera = true; // Track which camera is being used
 
     const randomPool = [
-      'peer-123456', 'peer-234567', 'peer-345678',
-      'peer-456789', 'peer-567890', 'peer-678901',
-      'peer-789012', 'peer-890123', 'peer-901234'
-    ];
+  'peer-123456', 'peer-234567', 'peer-345678',
+  'peer-456789', 'peer-567890', 'peer-678901',
+  'peer-789012', 'peer-890123', 'peer-901234',
+  'peer-111111', 'peer-222222', 'peer-333333',
+  'peer-444444', 'peer-555555', 'peer-666666',
+  'peer-777777', 'peer-888888', 'peer-999999',
+  'peer-000000'
+];
+
 
     function generateRandomId() {
       return 'peer-' + Math.floor(Math.random() * 1000000).toString().padStart(6, '0');
@@ -102,43 +98,19 @@
         });
         localStream = stream;
         localVideo.srcObject = stream;
-
-        updateCameraLabel();
       } catch (err) {
         console.error('Error getting media:', err);
         alert('Camera access denied or unavailable.');
       }
     }
 
-    function updateCameraLabel() {
-      cameraLabel.textContent = 'Camera: ' + (usingFrontCamera ? 'Front' : 'Back');
-    }
-
-    // Initial camera setup
+    // Initial load with front camera
     getMediaStream('user');
 
     function toggleCamera() {
       usingFrontCamera = !usingFrontCamera;
       const mode = usingFrontCamera ? 'user' : 'environment';
       getMediaStream(mode);
-    }
-
-    function toggleMic() {
-      if (!localStream) return;
-      const audioTrack = localStream.getAudioTracks()[0];
-      if (audioTrack) {
-        audioTrack.enabled = !audioTrack.enabled;
-        alert(`Microphone ${audioTrack.enabled ? 'unmuted' : 'muted'}.`);
-      }
-    }
-
-    function toggleVideo() {
-      if (!localStream) return;
-      const videoTrack = localStream.getVideoTracks()[0];
-      if (videoTrack) {
-        videoTrack.enabled = !videoTrack.enabled;
-        alert(`Video ${videoTrack.enabled ? 'enabled' : 'disabled'}.`);
-      }
     }
 
     function startAsHost() {
@@ -207,11 +179,12 @@
       }
     }
 
+    // Fullscreen toggle for remote video
     function toggleFullScreen() {
       const videoContainer = document.getElementById("remoteVideoContainer");
       if (!document.fullscreenElement) {
         videoContainer.requestFullscreen().catch(err => {
-          alert(`Error enabling fullscreen: ${err.message}`);
+          alert(`Error attempting to enable full-screen mode: ${err.message}`);
         });
       } else {
         document.exitFullscreen();
