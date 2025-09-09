@@ -9,6 +9,23 @@
     button { padding: 10px 20px; margin: 10px; font-size: 16px; }
     #my-id, #status { margin: 10px; font-weight: bold; }
     .explanation { margin-top: 30px; text-align: left; display: inline-block; text-align: left; }
+    #controls { margin-top: 10px; }
+    .fullscreen-btn {
+      position: absolute;
+      right: 15px;
+      top: 15px;
+      z-index: 10;
+      font-size: 20px;
+      background: rgba(0,0,0,0.5);
+      color: white;
+      border: none;
+      padding: 5px;
+      cursor: pointer;
+    }
+    #remoteVideoContainer {
+      position: relative;
+      display: inline-block;
+    }
   </style>
 </head>
 <body>
@@ -16,14 +33,20 @@
   <h2>Random Video Chat</h2>
 
   <video id="localVideo" autoplay muted playsinline></video>
-  <video id="remoteVideo" autoplay playsinline></video>
+  
+  <!-- Remote video with fullscreen button -->
+  <div id="remoteVideoContainer">
+    <button class="fullscreen-btn" onclick="toggleFullScreen()">⛶</button>
+    <video id="remoteVideo" autoplay playsinline></video>
+  </div>
 
-  <div>
+  <div id="controls">
     <p>Your ID: <span id="my-id">...</span></p>
     <p>Status: <span id="status">Waiting...</span></p>
     <button onclick="startAsHost()">Start as Host</button>
     <button onclick="startAsGuest()">Start as Guest</button>
     <button onclick="findNextPartner()">Find Next Partner</button>
+    <button onclick="toggleCamera()">Switch Camera</button>
   </div>
 
   <!-- Explanation Section -->
@@ -45,7 +68,8 @@
     const statusSpan = document.getElementById('status');
 
     let peer, localStream, currentCall;
-    let lastRole = null; // Keep track of whether host or guest
+    let lastRole = null;
+    let usingFrontCamera = true; // Track which camera is being used
 
     const randomPool = [
       'peer-123456', 'peer-234567', 'peer-345678',
@@ -57,10 +81,32 @@
       return 'peer-' + Math.floor(Math.random() * 1000000).toString().padStart(6, '0');
     }
 
-    navigator.mediaDevices.getUserMedia({ video: true, audio: true }).then(stream => {
-      localStream = stream;
-      localVideo.srcObject = stream;
-    });
+    async function getMediaStream(facingMode = 'user') {
+      if (localStream) {
+        localStream.getTracks().forEach(track => track.stop());
+      }
+
+      try {
+        const stream = await navigator.mediaDevices.getUserMedia({
+          video: { facingMode },
+          audio: true
+        });
+        localStream = stream;
+        localVideo.srcObject = stream;
+      } catch (err) {
+        console.error('Error getting media:', err);
+        alert('Camera access denied or unavailable.');
+      }
+    }
+
+    // Initial load with front camera
+    getMediaStream('user');
+
+    function toggleCamera() {
+      usingFrontCamera = !usingFrontCamera;
+      const mode = usingFrontCamera ? 'user' : 'environment';
+      getMediaStream(mode);
+    }
 
     function startAsHost() {
       cleanup();
@@ -105,7 +151,6 @@
       });
     }
 
-    // Cleanup before next connection
     function cleanup() {
       if (currentCall) {
         currentCall.close();
@@ -119,7 +164,6 @@
       statusSpan.textContent = 'Disconnected. Ready for next.';
     }
 
-    // "Find Next Partner" logic
     function findNextPartner() {
       if (lastRole === 'host') {
         startAsHost();
@@ -127,6 +171,18 @@
         startAsGuest();
       } else {
         statusSpan.textContent = 'Please start as Host or Guest first.';
+      }
+    }
+
+    // Fullscreen toggle for remote video
+    function toggleFullScreen() {
+      const videoContainer = document.getElementById("remoteVideoContainer");
+      if (!document.fullscreenElement) {
+        videoContainer.requestFullscreen().catch(err => {
+          alert(`Error attempting to enable full-screen mode: ${err.message}`);
+        });
+      } else {
+        document.exitFullscreen();
       }
     }
   </script>
