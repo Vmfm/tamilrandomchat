@@ -70,7 +70,6 @@
       transition: background-color 0.3s ease;
     }
 
-    /* Colored buttons */
     .btn-host       { background-color: #007bff; } /* Blue */
     .btn-guest      { background-color: #28a745; } /* Green */
     .btn-next       { background-color: #ffc107; color: black; } /* Yellow */
@@ -88,6 +87,23 @@
 
     #controls {
       margin-top: 20px;
+    }
+
+    /* Host Popup */
+    #hostPopup {
+      position: fixed;
+      top: 50%;
+      left: 50%;
+      transform: translate(-50%, -50%);
+      background: white;
+      color: #333;
+      padding: 25px 30px;
+      border-radius: 10px;
+      box-shadow: 0 0 15px rgba(0,0,0,0.3);
+      z-index: 9999;
+      display: none;
+      font-size: 18px;
+      font-weight: bold;
     }
   </style>
 </head>
@@ -113,6 +129,11 @@
     <button class="btn-cam" onclick="toggleCam()" id="camBtn">Cam Off</button>
   </div>
 
+  <!-- Host Popup -->
+  <div id="hostPopup">
+    ✅ Waiting for a guest to connect...
+  </div>
+
   <!-- PeerJS Script -->
   <script src="https://cdn.jsdelivr.net/npm/peerjs@1.4.7/dist/peerjs.min.js"></script>
   <script>
@@ -122,6 +143,7 @@
     const statusSpan = document.getElementById('status');
     const micBtn = document.getElementById('micBtn');
     const camBtn = document.getElementById('camBtn');
+    const hostPopup = document.getElementById('hostPopup');
 
     let peer, localStream, currentCall;
     let lastRole = null;
@@ -156,7 +178,6 @@
       }
     }
 
-    // Load default camera
     getMediaStream('user');
 
     function toggleMic() {
@@ -181,10 +202,15 @@
       myIdSpan.textContent = myId;
       statusSpan.textContent = 'Waiting for partner to connect...';
 
+      // Show host popup
+      hostPopup.style.display = 'block';
+
       peer.on('call', call => {
         currentCall = call;
         call.answer(localStream);
         statusSpan.textContent = 'Partner connected!';
+        hostPopup.style.display = 'none';
+
         call.on('stream', remoteStream => {
           remoteVideo.srcObject = remoteStream;
         });
@@ -200,7 +226,7 @@
 
       peer.on('open', () => {
         tryGuestConnection();
-        guestRetryInterval = setInterval(tryGuestConnection, 5000); // retry every 5 sec
+        guestRetryInterval = setInterval(tryGuestConnection, 5000);
       });
     }
 
@@ -215,7 +241,7 @@
       call.on('stream', remoteStream => {
         remoteVideo.srcObject = remoteStream;
         statusSpan.textContent = 'Connected!';
-        clearInterval(guestRetryInterval); // stop retrying after success
+        clearInterval(guestRetryInterval);
       });
 
       call.on('error', () => {
@@ -245,6 +271,7 @@
       }
       remoteVideo.srcObject = null;
       statusSpan.textContent = 'Ready.';
+      hostPopup.style.display = 'none';
     }
 
     function findNextPartner() {
