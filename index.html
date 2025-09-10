@@ -1,7 +1,7 @@
 <!DOCTYPE html>
 <html>
 <head>
-  <meta charset="UTF-8">
+  <meta charset="UTF-8" />
   <title>Random PeerJS Video Chat</title>
   <style>
     body {
@@ -70,11 +70,12 @@
       transition: background-color 0.3s ease;
     }
 
-    .btn-host       { background-color: #007bff; } /* Blue */
-    .btn-guest      { background-color: #28a745; } /* Green */
-    .btn-next       { background-color: #ffc107; color: black; } /* Yellow */
-    .btn-mic        { background-color: #dc3545; } /* Red */
-    .btn-cam        { background-color: #17a2b8; } /* Teal */
+    .btn-host { background-color: #007bff; } /* Blue */
+    .btn-guest { background-color: #28a745; } /* Green */
+    .btn-next { background-color: #ffc107; color: black; } /* Yellow */
+    .btn-mic { background-color: #dc3545; } /* Red */
+    .btn-cam { background-color: #17a2b8; } /* Teal */
+    .btn-cancel { background-color: #6c757d; } /* Gray */
 
     button:hover {
       filter: brightness(1.1);
@@ -89,26 +90,54 @@
       margin-top: 20px;
     }
 
-    /* Host Popup */
-    #hostPopup {
-      position: fixed;
+    /* Spinner: bouncing dots */
+    #loadingSpinner {
+      position: absolute;
       top: 50%;
       left: 50%;
       transform: translate(-50%, -50%);
-      background: white;
-      color: #333;
-      padding: 25px 30px;
-      border-radius: 10px;
-      box-shadow: 0 0 15px rgba(0,0,0,0.3);
-      z-index: 9999;
+      z-index: 5;
       display: none;
-      font-size: 18px;
+      text-align: center;
+      color: white;
       font-weight: bold;
+      font-size: 14px;
+    }
+
+    .dot {
+      display: inline-block;
+      width: 12px;
+      height: 12px;
+      margin: 0 5px;
+      background-color: white;
+      border-radius: 50%;
+      animation-name: bounce;
+      animation-duration: 1.4s;
+      animation-iteration-count: infinite;
+      animation-timing-function: ease-in-out;
+    }
+
+    .dot:nth-child(1) {
+      animation-delay: -0.32s;
+    }
+    .dot:nth-child(2) {
+      animation-delay: -0.16s;
+    }
+    .dot:nth-child(3) {
+      animation-delay: 0;
+    }
+
+    @keyframes bounce {
+      0%, 80%, 100% {
+        transform: scale(0);
+      }
+      40% {
+        transform: scale(1);
+      }
     }
   </style>
 </head>
 <body>
-
   <h2>Random Video Chat</h2>
 
   <!-- Video Container -->
@@ -116,6 +145,14 @@
     <video id="remoteVideo" autoplay playsinline></video>
     <video id="localVideo" autoplay muted playsinline></video>
     <button class="fullscreen-btn" onclick="toggleFullScreen()">⛶</button>
+
+    <!-- Loading Spinner -->
+    <div id="loadingSpinner" aria-live="polite" aria-label="Waiting for partner">
+      Waiting for partner
+      <span class="dot"></span>
+      <span class="dot"></span>
+      <span class="dot"></span>
+    </div>
   </div>
 
   <!-- Controls -->
@@ -127,12 +164,11 @@
     <button class="btn-next" onclick="findNextPartner()">Find Next Partner</button>
     <button class="btn-mic" onclick="toggleMic()" id="micBtn">Mic Off</button>
     <button class="btn-cam" onclick="toggleCam()" id="camBtn">Cam Off</button>
+    <button class="btn-cancel" onclick="cancelConnection()" id="cancelBtn" style="display:none;">Cancel Connection</button>
   </div>
 
-  <!-- Host Popup -->
-  <div id="hostPopup">
-    ✅ Waiting for a guest to connect...
-  </div>
+  <!-- Sound for connection -->
+  <audio id="connectedSound" src="https://actions.google.com/sounds/v1/cartoon/clang_and_wobble.ogg" preload="auto"></audio>
 
   <!-- PeerJS Script -->
   <script src="https://cdn.jsdelivr.net/npm/peerjs@1.4.7/dist/peerjs.min.js"></script>
@@ -143,7 +179,9 @@
     const statusSpan = document.getElementById('status');
     const micBtn = document.getElementById('micBtn');
     const camBtn = document.getElementById('camBtn');
-    const hostPopup = document.getElementById('hostPopup');
+    const loadingSpinner = document.getElementById('loadingSpinner');
+    const cancelBtn = document.getElementById('cancelBtn');
+    const connectedSound = document.getElementById('connectedSound');
 
     let peer, localStream, currentCall;
     let lastRole = null;
@@ -201,18 +239,29 @@
       peer = new Peer(myId);
       myIdSpan.textContent = myId;
       statusSpan.textContent = 'Waiting for partner to connect...';
-
-      // Show host popup
-      hostPopup.style.display = 'block';
+      loadingSpinner.style.display = 'block';
+      cancelBtn.style.display = 'inline-block';
 
       peer.on('call', call => {
         currentCall = call;
         call.answer(localStream);
         statusSpan.textContent = 'Partner connected!';
-        hostPopup.style.display = 'none';
+        loadingSpinner.style.display = 'none';
+        cancelBtn.style.display = 'none';
+        playConnectedSound();
 
         call.on('stream', remoteStream => {
           remoteVideo.srcObject = remoteStream;
+        });
+
+        call.on('close', () => {
+          statusSpan.textContent = 'Partner disconnected.';
+          cleanup();
+        });
+
+        call.on('error', () => {
+          statusSpan.textContent = 'Call error occurred.';
+          cleanup();
         });
       });
     }
@@ -223,10 +272,18 @@
       const myId = generateRandomId();
       peer = new Peer(myId);
       myIdSpan.textContent = myId;
+      loadingSpinner.style.display = 'block';
+      cancelBtn.style.display = 'inline-block';
 
       peer.on('open', () => {
         tryGuestConnection();
         guestRetryInterval = setInterval(tryGuestConnection, 5000);
+      });
+
+      peer.on('error', (err) => {
+        console.error('Peer error:', err);
+        statusSpan.textContent = 'Error: ' + err;
+        cleanup();
       });
     }
 
@@ -241,7 +298,10 @@
       call.on('stream', remoteStream => {
         remoteVideo.srcObject = remoteStream;
         statusSpan.textContent = 'Connected!';
+        loadingSpinner.style.display = 'none';
+        cancelBtn.style.display = 'none';
         clearInterval(guestRetryInterval);
+        playConnectedSound();
       });
 
       call.on('error', () => {
@@ -250,13 +310,17 @@
 
       call.on('close', () => {
         statusSpan.textContent = 'Disconnected. Retrying...';
+        loadingSpinner.style.display = 'block';
         if (!guestRetryInterval) {
           guestRetryInterval = setInterval(tryGuestConnection, 5000);
         }
       });
     }
 
-    function cleanup() {
+    function cancelConnection() {
+      statusSpan.textContent = 'Connection canceled.';
+      loadingSpinner.style.display = 'none';
+      cancelBtn.style.display = 'none';
       if (guestRetryInterval) {
         clearInterval(guestRetryInterval);
         guestRetryInterval = null;
@@ -270,8 +334,11 @@
         peer = null;
       }
       remoteVideo.srcObject = null;
+    }
+
+    function cleanup() {
+      cancelConnection();
       statusSpan.textContent = 'Ready.';
-      hostPopup.style.display = 'none';
     }
 
     function findNextPartner() {
@@ -293,6 +360,11 @@
       } else {
         document.exitFullscreen();
       }
+    }
+
+    function playConnectedSound() {
+      connectedSound.currentTime = 0;
+      connectedSound.play().catch(() => {});
     }
   </script>
 </body>
