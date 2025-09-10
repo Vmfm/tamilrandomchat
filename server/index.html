@@ -1,16 +1,60 @@
 <!DOCTYPE html>
-<html lang="en">
+<html>
 <head>
-  <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
-  <title>Mini Temple Run</title>
+  <title>Group Voice Chat</title>
+  <script src="https://unpkg.com/peerjs@1.4.7/dist/peerjs.min.js"></script>
   <style>
-    body { margin: 0; overflow: hidden; background: #333; }
-    canvas { display: block; background: linear-gradient(to bottom, #222, #444); }
+    body { font-family: sans-serif; text-align: center; background: #111; color: white; }
+    input, button { padding: 10px; margin: 10px; }
   </style>
 </head>
 <body>
-  <canvas id="game"></canvas>
-  <script src="game.js"></script>
+  <h1>Group Voice Chat</h1>
+  <p>Your ID: <span id="my-id">...</span></p>
+
+  <input type="text" id="peer-id" placeholder="Enter peer ID to connect"/>
+  <button onclick="connectToPeer()">Connect</button>
+
+  <script>
+    const peer = new Peer();
+    const myAudio = new Audio();
+    myAudio.autoplay = true;
+
+    const connections = [];
+
+    navigator.mediaDevices.getUserMedia({ audio: true }).then(stream => {
+      peer.on('open', id => {
+        document.getElementById('my-id').textContent = id;
+      });
+
+      // Answer incoming calls
+      peer.on('call', call => {
+        call.answer(stream);
+        call.on('stream', remoteStream => {
+          playAudio(remoteStream);
+        });
+        connections.push(call);
+      });
+
+      window.connectToPeer = function () {
+        const peerId = document.getElementById('peer-id').value;
+        const call = peer.call(peerId, stream);
+        call.on('stream', remoteStream => {
+          playAudio(remoteStream);
+        });
+        connections.push(call);
+      };
+
+      function playAudio(remoteStream) {
+        const audio = new Audio();
+        audio.srcObject = remoteStream;
+        audio.autoplay = true;
+        document.body.appendChild(audio);
+      }
+    }).catch(err => {
+      alert("Microphone access denied.");
+      console.error(err);
+    });
+  </script>
 </body>
 </html>
