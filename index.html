@@ -187,7 +187,7 @@
     let lastRole = null;
     let micEnabled = true;
     let camEnabled = true;
-    let guestRetryInterval = null;
+    let retryInterval = null;
 
     const randomPool = [
       'peer-123456', 'peer-234567', 'peer-345678',
@@ -232,12 +232,14 @@
       camBtn.textContent = camEnabled ? 'Cam Off' : 'Cam On';
     }
 
+    // === HOST with automatic guest finder ===
     function startAsHost() {
       cleanup();
       lastRole = 'host';
       const myId = randomPool[Math.floor(Math.random() * randomPool.length)];
       peer = new Peer(myId);
       myIdSpan.textContent = myId;
+
       statusSpan.textContent = 'Waiting for partner to connect...';
       loadingSpinner.style.display = 'block';
       cancelBtn.style.display = 'inline-block';
@@ -264,75 +266,144 @@
           cleanup();
         });
       });
+
+      // Automatically try to call guests periodically to find partner
+      retryInterval = setInterval(() => {
+        if (currentCall || peer.destroyed) return;
+        tryCallGuest();
+      }, 4000);
+
+      // Try immediately too
+      tryCallGuest();
     }
 
+    function tryCallGuest() {
+      if (!peer || peer.destroyed) return;
+      if (currentCall) return;
+
+      const guestId = randomPool[Math.floor(Math.random() * randomPool.length)];
+      if (guestId === peer.id) return; // avoid calling self
+
+      statusSpan.textContent = 'Trying to connect to guest ' + guestId + '...';
+
+      const call = peer.call(guestId, localStream);
+      if (!call) return;
+
+      call.on('stream', remoteStream => {
+        currentCall = call;
+        remoteVideo.srcObject = remoteStream;
+        statusSpan.textContent = 'Connected to guest!';
+        loadingSpinner.style.display = 'none';
+        cancelBtn.style.display = 'none';
+        playConnectedSound();
+
+        clearInterval(retryInterval);
+        retryInterval = null;
+      });
+
+      call.on('close', () => {
+        if (currentCall === call) {
+          currentCall = null;
+          statusSpan.textContent = 'Guest disconnected, retrying...';
+          loadingSpinner.style.display = 'block';
+          cancelBtn.style.display = 'inline-block';
+        }
+      });
+
+      call.on('error', () => {
+        statusSpan.textContent = 'Connection failed. Retrying...';
+      });
+    }
+
+    // === GUEST ===
     function startAsGuest() {
       cleanup();
       lastRole = 'guest';
       const myId = generateRandomId();
       peer = new Peer(myId);
       myIdSpan.textContent = myId;
-      loadingSpinner.style.display = 'block';
-      cancelBtn.style.display = 'inline-block';
 
       peer.on('open', () => {
         tryGuestConnection();
-        guestRetryInterval = setInterval(tryGuestConnection, 5000);
+        retryInterval = setInterval(tryGuestConnection, 5000);
       });
 
-      peer.on('error', (err) => {
-        console.error('Peer error:', err);
-        statusSpan.textContent = 'Error: ' + err;
-        cleanup();
+      loadingSpinner.style.display = 'block';
+      cancelBtn.style.display = 'inline-block';
+      statusSpan.textContent = 'Looking for host to connect...';
+
+      peer.on('call', call => {
+        // guest should not receive calls normally, but just in case
+        call.answer(localStream);
+        call.on('stream', remoteStream => {
+          remoteVideo.srcObject = remoteStream;
+          statusSpan.textContent = 'Partner connected!';
+          loadingSpinner.style.display = 'none';
+          cancelBtn.style.display = 'none';
+          playConnectedSound();
+        });
       });
     }
 
     function tryGuestConnection() {
       if (!peer || peer.destroyed) return;
+      if (currentCall) return;
+
       const hostId = randomPool[Math.floor(Math.random() * randomPool.length)];
-      statusSpan.textContent = 'Trying to connect to ' + hostId + '...';
+      if (hostId === peer.id) return;
+
+      statusSpan.textContent = 'Trying to connect to host ' + hostId + '...';
 
       const call = peer.call(hostId, localStream);
-      currentCall = call;
+      if (!call) return;
 
       call.on('stream', remoteStream => {
+        currentCall = call;
         remoteVideo.srcObject = remoteStream;
-        statusSpan.textContent = 'Connected!';
+        statusSpan.textContent = 'Connected to host!';
         loadingSpinner.style.display = 'none';
         cancelBtn.style.display = 'none';
-        clearInterval(guestRetryInterval);
         playConnectedSound();
+
+        clearInterval(retryInterval);
+        retryInterval = null;
+      });
+
+      call.on('close', () => {
+        if (currentCall === call) {
+          currentCall = null;
+          statusSpan.textContent = 'Host disconnected, retrying...';
+          loadingSpinner.style.display = 'block';
+          cancelBtn.style.display = 'inline-block';
+        }
       });
 
       call.on('error', () => {
         statusSpan.textContent = 'Connection failed. Retrying...';
       });
-
-      call.on('close', () => {
-        statusSpan.textContent = 'Disconnected. Retrying...';
-        loadingSpinner.style.display = 'block';
-        if (!guestRetryInterval) {
-          guestRetryInterval = setInterval(tryGuestConnection, 5000);
-        }
-      });
     }
 
+    // === Cancel connection ===
     function cancelConnection() {
       statusSpan.textContent = 'Connection canceled.';
       loadingSpinner.style.display = 'none';
       cancelBtn.style.display = 'none';
-      if (guestRetryInterval) {
-        clearInterval(guestRetryInterval);
-        guestRetryInterval = null;
+
+      if (retryInterval) {
+        clearInterval(retryInterval);
+        retryInterval = null;
       }
+
       if (currentCall) {
         currentCall.close();
         currentCall = null;
       }
+
       if (peer) {
         peer.destroy();
         peer = null;
       }
+
       remoteVideo.srcObject = null;
     }
 
