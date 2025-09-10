@@ -2,7 +2,7 @@
 <html>
 <head>
   <meta charset="UTF-8">
-  <title>Random PeerJS Video Chat</title>
+  <title>Random PeerJS Video Chat with Chat</title>
   <style>
     body {
       font-family: sans-serif;
@@ -51,11 +51,6 @@
       border-radius: 50%;
       padding: 8px 12px;
       cursor: pointer;
-      transition: background-color 0.3s ease;
-    }
-
-    .fullscreen-btn:hover {
-      background: rgba(0, 0, 0, 0.8);
     }
 
     button {
@@ -67,42 +62,79 @@
       border: none;
       border-radius: 30px;
       cursor: pointer;
-      transition: background-color 0.3s ease;
     }
 
-    /* Colored buttons */
-    .btn-host       { background-color: #007bff; } /* Blue */
-    .btn-guest      { background-color: #28a745; } /* Green */
-    .btn-next       { background-color: #ffc107; color: black; } /* Yellow */
-    .btn-mic        { background-color: #dc3545; } /* Red */
-    .btn-cam        { background-color: #17a2b8; } /* Teal */
+    .btn-host { background-color: #007bff; }
+    .btn-guest { background-color: #28a745; }
+    .btn-next { background-color: #ffc107; color: black; }
+    .btn-mic { background-color: #dc3545; }
+    .btn-cam { background-color: #17a2b8; }
+    .btn-cancel { background-color: #6c757d; }
 
-    button:hover {
-      filter: brightness(1.1);
-    }
-
-    #my-id, #status {
-      margin: 10px;
+    #loadingSpinner {
+      position: absolute;
+      top: 50%;
+      left: 50%;
+      transform: translate(-50%, -50%);
+      z-index: 5;
+      display: none;
+      text-align: center;
+      color: white;
       font-weight: bold;
+      font-size: 14px;
     }
 
-    #controls {
-      margin-top: 20px;
+    .dot {
+      display: inline-block;
+      width: 12px;
+      height: 12px;
+      margin: 0 5px;
+      background-color: white;
+      border-radius: 50%;
+      animation-name: bounce;
+      animation-duration: 1.4s;
+      animation-iteration-count: infinite;
+    }
+
+    .dot:nth-child(1) { animation-delay: -0.32s; }
+    .dot:nth-child(2) { animation-delay: -0.16s; }
+    .dot:nth-child(3) { animation-delay: 0; }
+
+    @keyframes bounce {
+      0%, 80%, 100% { transform: scale(0); }
+      40% { transform: scale(1); }
+    }
+
+    #chatContainer {
+      display: none;
+      max-width: 900px;
+      margin: 20px auto;
+      text-align: left;
+    }
+
+    #chatMessages {
+      height: 200px;
+      overflow-y: auto;
+      border: 1px solid #ccc;
+      padding: 10px;
+      margin-bottom: 10px;
+      background: #fff;
+      border-radius: 5px;
     }
   </style>
 </head>
 <body>
-
   <h2>Random Video Chat</h2>
 
-  <!-- Video Container -->
   <div id="videoContainer">
     <video id="remoteVideo" autoplay playsinline></video>
     <video id="localVideo" autoplay muted playsinline></video>
     <button class="fullscreen-btn" onclick="toggleFullScreen()">⛶</button>
+    <div id="loadingSpinner">Waiting for partner
+      <span class="dot"></span><span class="dot"></span><span class="dot"></span>
+    </div>
   </div>
 
-  <!-- Controls -->
   <div id="controls">
     <p>Your ID: <span id="my-id">...</span></p>
     <p>Status: <span id="status">Waiting...</span></p>
@@ -111,65 +143,65 @@
     <button class="btn-next" onclick="findNextPartner()">Find Next Partner</button>
     <button class="btn-mic" onclick="toggleMic()" id="micBtn">Mic Off</button>
     <button class="btn-cam" onclick="toggleCam()" id="camBtn">Cam Off</button>
+    <button class="btn-cancel" onclick="cancelConnection()" id="cancelBtn" style="display:none;">Cancel</button>
   </div>
 
-  <!-- PeerJS Script -->
+  <!-- Chat Box -->
+  <div id="chatContainer">
+    <div style="background: #fff; padding: 15px; border-radius: 10px; box-shadow: 0 0 10px rgba(0,0,0,0.1);">
+      <h3>Chat</h3>
+      <div id="chatMessages"></div>
+      <input type="text" id="chatInput" placeholder="Type a message..." style="width: 75%; padding: 8px;" />
+      <button onclick="sendMessage()" style="padding: 8px 12px;">Send</button>
+    </div>
+  </div>
+
+  <audio id="connectedSound" src="https://actions.google.com/sounds/v1/cartoon/clang_and_wobble.ogg" preload="auto"></audio>
   <script src="https://cdn.jsdelivr.net/npm/peerjs@1.4.7/dist/peerjs.min.js"></script>
   <script>
     const localVideo = document.getElementById('localVideo');
     const remoteVideo = document.getElementById('remoteVideo');
-    const myIdSpan = document.getElementById('my-id');
     const statusSpan = document.getElementById('status');
+    const myIdSpan = document.getElementById('my-id');
     const micBtn = document.getElementById('micBtn');
     const camBtn = document.getElementById('camBtn');
+    const loadingSpinner = document.getElementById('loadingSpinner');
+    const cancelBtn = document.getElementById('cancelBtn');
+    const connectedSound = document.getElementById('connectedSound');
+    const chatContainer = document.getElementById('chatContainer');
 
-    let peer, localStream, currentCall;
-    let lastRole = null;
-    let micEnabled = true;
-    let camEnabled = true;
-    let guestRetryInterval = null;
+    let peer, localStream, currentCall, retryInterval, dataConn;
+    let micEnabled = true, camEnabled = true, lastRole = null;
 
-    const randomPool = [
-      'peer-123456', 'peer-234567', 'peer-345678',
-      'peer-456789', 'peer-567890', 'peer-678901',
-      'peer-789012', 'peer-890123', 'peer-901234'
-    ];
+    const randomPool = ['peer-123456','peer-234567','peer-345678','peer-456789'];
 
     function generateRandomId() {
       return 'peer-' + Math.floor(Math.random() * 1000000).toString().padStart(6, '0');
     }
 
-    async function getMediaStream(facingMode = 'user') {
-      if (localStream) {
-        localStream.getTracks().forEach(track => track.stop());
-      }
+    async function getMediaStream() {
       try {
-        const stream = await navigator.mediaDevices.getUserMedia({
-          video: { facingMode },
-          audio: true
-        });
+        const stream = await navigator.mediaDevices.getUserMedia({ video: true, audio: true });
         localStream = stream;
         localVideo.srcObject = stream;
       } catch (err) {
-        console.error('Error accessing media devices:', err);
-        alert('Camera access denied or unavailable.');
+        alert('Camera/mic access denied.');
       }
     }
 
-    // Load default camera
-    getMediaStream('user');
+    getMediaStream();
 
     function toggleMic() {
       if (!localStream) return;
       micEnabled = !micEnabled;
-      localStream.getAudioTracks().forEach(track => track.enabled = micEnabled);
+      localStream.getAudioTracks().forEach(t => t.enabled = micEnabled);
       micBtn.textContent = micEnabled ? 'Mic Off' : 'Mic On';
     }
 
     function toggleCam() {
       if (!localStream) return;
       camEnabled = !camEnabled;
-      localStream.getVideoTracks().forEach(track => track.enabled = camEnabled);
+      localStream.getVideoTracks().forEach(t => t.enabled = camEnabled);
       camBtn.textContent = camEnabled ? 'Cam Off' : 'Cam On';
     }
 
@@ -179,14 +211,22 @@
       const myId = randomPool[Math.floor(Math.random() * randomPool.length)];
       peer = new Peer(myId);
       myIdSpan.textContent = myId;
-      statusSpan.textContent = 'Waiting for partner to connect...';
+      statusSpan.textContent = 'Waiting for partner...';
+      loadingSpinner.style.display = 'block';
+      cancelBtn.style.display = 'inline-block';
 
       peer.on('call', call => {
         currentCall = call;
         call.answer(localStream);
-        statusSpan.textContent = 'Partner connected!';
-        call.on('stream', remoteStream => {
-          remoteVideo.srcObject = remoteStream;
+        call.on('stream', stream => {
+          remoteVideo.srcObject = stream;
+          onPartnerConnected(call.peer);
+        });
+      });
+
+      peer.on('connection', conn => {
+        conn.on('open', () => {
+          initChatConnection(conn);
         });
       });
     }
@@ -197,75 +237,93 @@
       const myId = generateRandomId();
       peer = new Peer(myId);
       myIdSpan.textContent = myId;
-
       peer.on('open', () => {
+        retryInterval = setInterval(tryGuestConnection, 4000);
         tryGuestConnection();
-        guestRetryInterval = setInterval(tryGuestConnection, 5000); // retry every 5 sec
       });
+
+      peer.on('connection', conn => {
+        conn.on('open', () => {
+          initChatConnection(conn);
+        });
+      });
+
+      loadingSpinner.style.display = 'block';
+      cancelBtn.style.display = 'inline-block';
     }
 
     function tryGuestConnection() {
-      if (!peer || peer.destroyed) return;
+      if (!peer || peer.destroyed || currentCall) return;
       const hostId = randomPool[Math.floor(Math.random() * randomPool.length)];
-      statusSpan.textContent = 'Trying to connect to ' + hostId + '...';
+      if (hostId === peer.id) return;
 
       const call = peer.call(hostId, localStream);
-      currentCall = call;
+      const conn = peer.connect(hostId);
 
-      call.on('stream', remoteStream => {
-        remoteVideo.srcObject = remoteStream;
-        statusSpan.textContent = 'Connected!';
-        clearInterval(guestRetryInterval); // stop retrying after success
-      });
-
-      call.on('error', () => {
-        statusSpan.textContent = 'Connection failed. Retrying...';
-      });
-
-      call.on('close', () => {
-        statusSpan.textContent = 'Disconnected. Retrying...';
-        if (!guestRetryInterval) {
-          guestRetryInterval = setInterval(tryGuestConnection, 5000);
-        }
+      call.on('stream', stream => {
+        remoteVideo.srcObject = stream;
+        currentCall = call;
+        onPartnerConnected(hostId);
       });
     }
 
-    function cleanup() {
-      if (guestRetryInterval) {
-        clearInterval(guestRetryInterval);
-        guestRetryInterval = null;
-      }
-      if (currentCall) {
-        currentCall.close();
-        currentCall = null;
-      }
-      if (peer) {
-        peer.destroy();
-        peer = null;
-      }
-      remoteVideo.srcObject = null;
-      statusSpan.textContent = 'Ready.';
+    function onPartnerConnected(peerId) {
+      clearInterval(retryInterval);
+      statusSpan.textContent = 'Connected to ' + peerId;
+      loadingSpinner.style.display = 'none';
+      cancelBtn.style.display = 'none';
+      connectedSound.play().catch(()=>{});
+      chatContainer.style.display = 'block';
+    }
+
+    function initChatConnection(conn) {
+      dataConn = conn;
+      conn.on('data', data => {
+        addChatMessage('Partner', data);
+      });
+    }
+
+    function sendMessage() {
+      const input = document.getElementById('chatInput');
+      const msg = input.value.trim();
+      if (!msg || !dataConn || dataConn.open === false) return;
+      dataConn.send(msg);
+      addChatMessage('You', msg);
+      input.value = '';
+    }
+
+    function addChatMessage(sender, msg) {
+      const box = document.getElementById('chatMessages');
+      const time = new Date().toLocaleTimeString();
+      box.innerHTML += `<div><strong>${sender}</strong> [${time}]: ${msg}</div>`;
+      box.scrollTop = box.scrollHeight;
     }
 
     function findNextPartner() {
-      if (lastRole === 'host') {
-        startAsHost();
-      } else if (lastRole === 'guest') {
-        startAsGuest();
-      } else {
-        statusSpan.textContent = 'Please start as Host or Guest first.';
-      }
+      if (lastRole === 'host') startAsHost();
+      else if (lastRole === 'guest') startAsGuest();
+    }
+
+    function cancelConnection() {
+      if (retryInterval) clearInterval(retryInterval);
+      if (currentCall) currentCall.close();
+      if (peer) peer.destroy();
+      statusSpan.textContent = 'Connection cancelled.';
+      loadingSpinner.style.display = 'none';
+      cancelBtn.style.display = 'none';
+      remoteVideo.srcObject = null;
+      chatContainer.style.display = 'none';
+      document.getElementById('chatMessages').innerHTML = '';
+    }
+
+    function cleanup() {
+      cancelConnection();
     }
 
     function toggleFullScreen() {
-      const videoContainer = document.getElementById("videoContainer");
-      if (!document.fullscreenElement) {
-        videoContainer.requestFullscreen().catch(err => {
-          alert(`Error enabling fullscreen: ${err.message}`);
-        });
-      } else {
-        document.exitFullscreen();
-      }
+      const container = document.getElementById('videoContainer');
+      if (!document.fullscreenElement) container.requestFullscreen();
+      else document.exitFullscreen();
     }
   </script>
 </body>
