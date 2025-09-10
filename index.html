@@ -89,13 +89,6 @@
     #controls {
       margin-top: 20px;
     }
-
-    .explanation {
-      margin-top: 30px;
-      text-align: left;
-      display: inline-block;
-      max-width: 800px;
-    }
   </style>
 </head>
 <body>
@@ -120,17 +113,6 @@
     <button class="btn-cam" onclick="toggleCam()" id="camBtn">Cam Off</button>
   </div>
 
-  <!-- Explanation -->
-  <div class="explanation">
-    <h2>English</h2>
-    <p><strong>Start as Host:</strong> Starts a new video chat room and waits for someone to join.</p>
-    <p><strong>Start as Guest:</strong> Joins an existing video chat room started by a host.</p>
-
-    <h2>தமிழ் (Tamil)</h2>
-    <p><strong>Start as Host:</strong> புதிய வீடியோ சேட் அறையை தொடங்கி ஒருவர் சேர காத்திருக்கவும்.</p>
-    <p><strong>Start as Guest:</strong> ஏற்கனவே தொடங்கிய அறையில் நீங்கள் சேர (find next partner button) ஐ அழுத்தவும்.</p>
-  </div>
-
   <!-- PeerJS Script -->
   <script src="https://cdn.jsdelivr.net/npm/peerjs@1.4.7/dist/peerjs.min.js"></script>
   <script>
@@ -145,15 +127,12 @@
     let lastRole = null;
     let micEnabled = true;
     let camEnabled = true;
+    let guestRetryInterval = null;
 
     const randomPool = [
       'peer-123456', 'peer-234567', 'peer-345678',
       'peer-456789', 'peer-567890', 'peer-678901',
-      'peer-789012', 'peer-890123', 'peer-901234',
-      'peer-111111', 'peer-222222', 'peer-333333',
-      'peer-444444', 'peer-555555', 'peer-666666',
-      'peer-777777', 'peer-888888', 'peer-999999',
-      'peer-000000'
+      'peer-789012', 'peer-890123', 'peer-901234'
     ];
 
     function generateRandomId() {
@@ -164,7 +143,6 @@
       if (localStream) {
         localStream.getTracks().forEach(track => track.stop());
       }
-
       try {
         const stream = await navigator.mediaDevices.getUserMedia({
           video: { facingMode },
@@ -201,12 +179,12 @@
       const myId = randomPool[Math.floor(Math.random() * randomPool.length)];
       peer = new Peer(myId);
       myIdSpan.textContent = myId;
-      statusSpan.textContent = 'Waiting for guest...';
+      statusSpan.textContent = 'Waiting for partner to connect...';
 
       peer.on('call', call => {
         currentCall = call;
         call.answer(localStream);
-        statusSpan.textContent = 'Connected!';
+        statusSpan.textContent = 'Partner connected!';
         call.on('stream', remoteStream => {
           remoteVideo.srcObject = remoteStream;
         });
@@ -221,24 +199,42 @@
       myIdSpan.textContent = myId;
 
       peer.on('open', () => {
-        const hostId = randomPool[Math.floor(Math.random() * randomPool.length)];
-        statusSpan.textContent = 'Trying to connect to ' + hostId + '...';
+        tryGuestConnection();
+        guestRetryInterval = setInterval(tryGuestConnection, 5000); // retry every 5 sec
+      });
+    }
 
-        const call = peer.call(hostId, localStream);
-        currentCall = call;
+    function tryGuestConnection() {
+      if (!peer || peer.destroyed) return;
+      const hostId = randomPool[Math.floor(Math.random() * randomPool.length)];
+      statusSpan.textContent = 'Trying to connect to ' + hostId + '...';
 
-        call.on('stream', remoteStream => {
-          remoteVideo.srcObject = remoteStream;
-          statusSpan.textContent = 'Connected to host!';
-        });
+      const call = peer.call(hostId, localStream);
+      currentCall = call;
 
-        call.on('error', err => {
-          statusSpan.textContent = 'Call failed: ' + err;
-        });
+      call.on('stream', remoteStream => {
+        remoteVideo.srcObject = remoteStream;
+        statusSpan.textContent = 'Connected!';
+        clearInterval(guestRetryInterval); // stop retrying after success
+      });
+
+      call.on('error', () => {
+        statusSpan.textContent = 'Connection failed. Retrying...';
+      });
+
+      call.on('close', () => {
+        statusSpan.textContent = 'Disconnected. Retrying...';
+        if (!guestRetryInterval) {
+          guestRetryInterval = setInterval(tryGuestConnection, 5000);
+        }
       });
     }
 
     function cleanup() {
+      if (guestRetryInterval) {
+        clearInterval(guestRetryInterval);
+        guestRetryInterval = null;
+      }
       if (currentCall) {
         currentCall.close();
         currentCall = null;
@@ -248,7 +244,7 @@
         peer = null;
       }
       remoteVideo.srcObject = null;
-      statusSpan.textContent = 'Disconnected. Ready for next.';
+      statusSpan.textContent = 'Ready.';
     }
 
     function findNextPartner() {
@@ -272,6 +268,5 @@
       }
     }
   </script>
-
 </body>
 </html>
