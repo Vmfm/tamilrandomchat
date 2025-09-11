@@ -1,60 +1,442 @@
 <!DOCTYPE html>
 <html>
 <head>
-  <title>Group Voice Chat</title>
-  <script src="https://unpkg.com/peerjs@1.4.7/dist/peerjs.min.js"></script>
+  <meta charset="UTF-8" />
+  <title>Random PeerJS Video Chat</title>
   <style>
-    body { font-family: sans-serif; text-align: center; background: #111; color: white; }
-    input, button { padding: 10px; margin: 10px; }
+    body {
+      font-family: sans-serif;
+      text-align: center;
+      margin-top: 20px;
+      background-color: #f4f4f4;
+    }
+
+    #videoContainer {
+      position: relative;
+      display: inline-block;
+      width: 90%;
+      max-width: 900px;
+      background: #000;
+      border-radius: 10px;
+      overflow: hidden;
+    }
+
+    #remoteVideo {
+      width: 100%;
+      height: auto;
+      background-color: black;
+    }
+
+    #localVideo {
+      position: absolute;
+      bottom: 15px;
+      right: 15px;
+      width: 25%;
+      max-width: 200px;
+      border: 2px solid white;
+      border-radius: 8px;
+      box-shadow: 0 0 10px rgba(0, 0, 0, 0.5);
+      z-index: 2;
+    }
+
+    .fullscreen-btn {
+      position: absolute;
+      right: 15px;
+      top: 15px;
+      z-index: 3;
+      font-size: 20px;
+      background: rgba(0, 0, 0, 0.6);
+      color: white;
+      border: none;
+      border-radius: 50%;
+      padding: 8px 12px;
+      cursor: pointer;
+      transition: background-color 0.3s ease;
+    }
+
+    .fullscreen-btn:hover {
+      background: rgba(0, 0, 0, 0.8);
+    }
+
+    button {
+      padding: 10px 20px;
+      margin: 10px;
+      font-size: 16px;
+      font-weight: bold;
+      color: white;
+      border: none;
+      border-radius: 30px;
+      cursor: pointer;
+      transition: background-color 0.3s ease;
+    }
+
+    .btn-host { background-color: #007bff; } /* Blue */
+    .btn-guest { background-color: #28a745; } /* Green */
+    .btn-next { background-color: #ffc107; color: black; } /* Yellow */
+    .btn-mic { background-color: #dc3545; } /* Red */
+    .btn-cam { background-color: #17a2b8; } /* Teal */
+    .btn-cancel { background-color: #6c757d; } /* Gray */
+
+    button:hover {
+      filter: brightness(1.1);
+    }
+
+    #my-id, #status {
+      margin: 10px;
+      font-weight: bold;
+    }
+
+    #controls {
+      margin-top: 20px;
+    }
+
+    /* Spinner: bouncing dots */
+    #loadingSpinner {
+      position: absolute;
+      top: 50%;
+      left: 50%;
+      transform: translate(-50%, -50%);
+      z-index: 5;
+      display: none;
+      text-align: center;
+      color: white;
+      font-weight: bold;
+      font-size: 14px;
+    }
+
+    .dot {
+      display: inline-block;
+      width: 12px;
+      height: 12px;
+      margin: 0 5px;
+      background-color: white;
+      border-radius: 50%;
+      animation-name: bounce;
+      animation-duration: 1.4s;
+      animation-iteration-count: infinite;
+      animation-timing-function: ease-in-out;
+    }
+
+    .dot:nth-child(1) {
+      animation-delay: -0.32s;
+    }
+    .dot:nth-child(2) {
+      animation-delay: -0.16s;
+    }
+    .dot:nth-child(3) {
+      animation-delay: 0;
+    }
+
+    @keyframes bounce {
+      0%, 80%, 100% {
+        transform: scale(0);
+      }
+      40% {
+        transform: scale(1);
+      }
+    }
   </style>
 </head>
 <body>
-  <h1>Group Voice Chat</h1>
-  <p>Your ID: <span id="my-id">...</span></p>
+  <h2>Random Video Chat</h2>
 
-  <input type="text" id="peer-id" placeholder="Enter peer ID to connect"/>
-  <button onclick="connectToPeer()">Connect</button>
+  <!-- Video Container -->
+  <div id="videoContainer">
+    <video id="remoteVideo" autoplay playsinline></video>
+    <video id="localVideo" autoplay muted playsinline></video>
+    <button class="fullscreen-btn" onclick="toggleFullScreen()">⛶</button>
 
+    <!-- Loading Spinner -->
+    <div id="loadingSpinner" aria-live="polite" aria-label="Waiting for partner">
+      Waiting for partner
+      <span class="dot"></span>
+      <span class="dot"></span>
+      <span class="dot"></span>
+    </div>
+  </div>
+
+  <!-- Controls -->
+  <div id="controls">
+    <p>Your ID: <span id="my-id">...</span></p>
+    <p>Status: <span id="status">Waiting...</span></p>
+    <button class="btn-host" onclick="startAsHost()">Start as Male</button>
+    <button class="btn-guest" onclick="startAsGuest()">Start as Female</button>
+    <button class="btn-next" onclick="findNextPartner()">Find Next Partner</button>
+    <button class="btn-mic" onclick="toggleMic()" id="micBtn">Mic Off</button>
+    <button class="btn-cam" onclick="toggleCam()" id="camBtn">Cam Off</button>
+    <button class="btn-cancel" onclick="cancelConnection()" id="cancelBtn" style="display:none;">Cancel Connection</button>
+  </div>
+
+  <!-- Sound for connection -->
+  <audio id="connectedSound" src="https://actions.google.com/sounds/v1/cartoon/clang_and_wobble.ogg" preload="auto"></audio>
+
+  <!-- PeerJS Script -->
+  <script src="https://cdn.jsdelivr.net/npm/peerjs@1.4.7/dist/peerjs.min.js"></script>
   <script>
-    const peer = new Peer();
-    const myAudio = new Audio();
-    myAudio.autoplay = true;
+    const localVideo = document.getElementById('localVideo');
+    const remoteVideo = document.getElementById('remoteVideo');
+    const myIdSpan = document.getElementById('my-id');
+    const statusSpan = document.getElementById('status');
+    const micBtn = document.getElementById('micBtn');
+    const camBtn = document.getElementById('camBtn');
+    const loadingSpinner = document.getElementById('loadingSpinner');
+    const cancelBtn = document.getElementById('cancelBtn');
+    const connectedSound = document.getElementById('connectedSound');
 
-    const connections = [];
+    let peer, localStream, currentCall;
+    let lastRole = null;
+    let micEnabled = true;
+    let camEnabled = true;
+    let retryInterval = null;
 
-    navigator.mediaDevices.getUserMedia({ audio: true }).then(stream => {
-      peer.on('open', id => {
-        document.getElementById('my-id').textContent = id;
-      });
+    const randomPool = [
+      'peer-123456', 'peer-234567', 'peer-345678',
+      'peer-456789', 'peer-567890', 'peer-678901',
+      'peer-789012', 'peer-890123', 'peer-901234'
+    ];
 
-      // Answer incoming calls
-      peer.on('call', call => {
-        call.answer(stream);
-        call.on('stream', remoteStream => {
-          playAudio(remoteStream);
-        });
-        connections.push(call);
-      });
+    function generateRandomId() {
+      return 'peer-' + Math.floor(Math.random() * 1000000).toString().padStart(6, '0');
+    }
 
-      window.connectToPeer = function () {
-        const peerId = document.getElementById('peer-id').value;
-        const call = peer.call(peerId, stream);
-        call.on('stream', remoteStream => {
-          playAudio(remoteStream);
-        });
-        connections.push(call);
-      };
-
-      function playAudio(remoteStream) {
-        const audio = new Audio();
-        audio.srcObject = remoteStream;
-        audio.autoplay = true;
-        document.body.appendChild(audio);
+    async function getMediaStream(facingMode = 'user') {
+      if (localStream) {
+        localStream.getTracks().forEach(track => track.stop());
       }
-    }).catch(err => {
-      alert("Microphone access denied.");
-      console.error(err);
-    });
+      try {
+        const stream = await navigator.mediaDevices.getUserMedia({
+          video: { facingMode },
+          audio: true
+        });
+        localStream = stream;
+        localVideo.srcObject = stream;
+      } catch (err) {
+        console.error('Error accessing media devices:', err);
+        alert('Camera access denied or unavailable.');
+      }
+    }
+
+    getMediaStream('user');
+
+    function toggleMic() {
+      if (!localStream) return;
+      micEnabled = !micEnabled;
+      localStream.getAudioTracks().forEach(track => track.enabled = micEnabled);
+      micBtn.textContent = micEnabled ? 'Mic Off' : 'Mic On';
+    }
+
+    function toggleCam() {
+      if (!localStream) return;
+      camEnabled = !camEnabled;
+      localStream.getVideoTracks().forEach(track => track.enabled = camEnabled);
+      camBtn.textContent = camEnabled ? 'Cam Off' : 'Cam On';
+    }
+
+    // === HOST with automatic guest finder ===
+    function startAsHost() {
+      cleanup();
+      lastRole = 'host';
+      const myId = randomPool[Math.floor(Math.random() * randomPool.length)];
+      peer = new Peer(myId);
+      myIdSpan.textContent = myId;
+
+      statusSpan.textContent = 'Waiting for partner to connect...';
+      loadingSpinner.style.display = 'block';
+      cancelBtn.style.display = 'inline-block';
+
+      peer.on('call', call => {
+        currentCall = call;
+        call.answer(localStream);
+        statusSpan.textContent = 'Partner connected!';
+        loadingSpinner.style.display = 'none';
+        cancelBtn.style.display = 'none';
+        playConnectedSound();
+
+        call.on('stream', remoteStream => {
+          remoteVideo.srcObject = remoteStream;
+        });
+
+        call.on('close', () => {
+          statusSpan.textContent = 'Partner disconnected.';
+          cleanup();
+        });
+
+        call.on('error', () => {
+          statusSpan.textContent = 'Call error occurred.';
+          cleanup();
+        });
+      });
+
+      // Automatically try to call guests periodically to find partner
+      retryInterval = setInterval(() => {
+        if (currentCall || peer.destroyed) return;
+        tryCallGuest();
+      }, 4000);
+
+      // Try immediately too
+      tryCallGuest();
+    }
+
+    function tryCallGuest() {
+      if (!peer || peer.destroyed) return;
+      if (currentCall) return;
+
+      const guestId = randomPool[Math.floor(Math.random() * randomPool.length)];
+      if (guestId === peer.id) return; // avoid calling self
+
+      statusSpan.textContent = 'Trying to connect to guest ' + guestId + '...';
+
+      const call = peer.call(guestId, localStream);
+      if (!call) return;
+
+      call.on('stream', remoteStream => {
+        currentCall = call;
+        remoteVideo.srcObject = remoteStream;
+        statusSpan.textContent = 'Connected to guest!';
+        loadingSpinner.style.display = 'none';
+        cancelBtn.style.display = 'none';
+        playConnectedSound();
+
+        clearInterval(retryInterval);
+        retryInterval = null;
+      });
+
+      call.on('close', () => {
+        if (currentCall === call) {
+          currentCall = null;
+          statusSpan.textContent = 'Guest disconnected, retrying...';
+          loadingSpinner.style.display = 'block';
+          cancelBtn.style.display = 'inline-block';
+        }
+      });
+
+      call.on('error', () => {
+        statusSpan.textContent = 'Connection failed. Retrying...';
+      });
+    }
+
+    // === GUEST ===
+    function startAsGuest() {
+      cleanup();
+      lastRole = 'guest';
+      const myId = generateRandomId();
+      peer = new Peer(myId);
+      myIdSpan.textContent = myId;
+
+      peer.on('open', () => {
+        tryGuestConnection();
+        retryInterval = setInterval(tryGuestConnection, 5000);
+      });
+
+      loadingSpinner.style.display = 'block';
+      cancelBtn.style.display = 'inline-block';
+      statusSpan.textContent = 'Looking for host to connect...';
+
+      peer.on('call', call => {
+        // guest should not receive calls normally, but just in case
+        call.answer(localStream);
+        call.on('stream', remoteStream => {
+          remoteVideo.srcObject = remoteStream;
+          statusSpan.textContent = 'Partner connected!';
+          loadingSpinner.style.display = 'none';
+          cancelBtn.style.display = 'none';
+          playConnectedSound();
+        });
+      });
+    }
+
+    function tryGuestConnection() {
+      if (!peer || peer.destroyed) return;
+      if (currentCall) return;
+
+      const hostId = randomPool[Math.floor(Math.random() * randomPool.length)];
+      if (hostId === peer.id) return;
+
+      statusSpan.textContent = 'Trying to connect to host ' + hostId + '...';
+
+      const call = peer.call(hostId, localStream);
+      if (!call) return;
+
+      call.on('stream', remoteStream => {
+        currentCall = call;
+        remoteVideo.srcObject = remoteStream;
+        statusSpan.textContent = 'Connected to host!';
+        loadingSpinner.style.display = 'none';
+        cancelBtn.style.display = 'none';
+        playConnectedSound();
+
+        clearInterval(retryInterval);
+        retryInterval = null;
+      });
+
+      call.on('close', () => {
+        if (currentCall === call) {
+          currentCall = null;
+          statusSpan.textContent = 'Host disconnected, retrying...';
+          loadingSpinner.style.display = 'block';
+          cancelBtn.style.display = 'inline-block';
+        }
+      });
+
+      call.on('error', () => {
+        statusSpan.textContent = 'Connection failed. Retrying...';
+      });
+    }
+
+    // === Cancel connection ===
+    function cancelConnection() {
+      statusSpan.textContent = 'Connection canceled.';
+      loadingSpinner.style.display = 'none';
+      cancelBtn.style.display = 'none';
+
+      if (retryInterval) {
+        clearInterval(retryInterval);
+        retryInterval = null;
+      }
+
+      if (currentCall) {
+        currentCall.close();
+        currentCall = null;
+      }
+
+      if (peer) {
+        peer.destroy();
+        peer = null;
+      }
+
+      remoteVideo.srcObject = null;
+    }
+
+    function cleanup() {
+      cancelConnection();
+      statusSpan.textContent = 'Ready.';
+    }
+
+    function findNextPartner() {
+      if (lastRole === 'host') {
+        startAsHost();
+      } else if (lastRole === 'guest') {
+        startAsGuest();
+      } else {
+        statusSpan.textContent = 'Please start as Girl or Female first.';
+      }
+    }
+
+    function toggleFullScreen() {
+      const videoContainer = document.getElementById("videoContainer");
+      if (!document.fullscreenElement) {
+        videoContainer.requestFullscreen().catch(err => {
+          alert(`Error enabling fullscreen: ${err.message}`);
+        });
+      } else {
+        document.exitFullscreen();
+      }
+    }
+
+    function playConnectedSound() {
+      connectedSound.currentTime = 0;
+      connectedSound.play().catch(() => {});
+    }
   </script>
 </body>
 </html>
