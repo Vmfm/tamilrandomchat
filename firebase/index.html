@@ -1,9 +1,9 @@
-<!DOCTYPE html>
+<!doctype html>
 <html>
 <head>
   <meta charset="utf-8" />
   <title>Random Video Chat - Tamil VM</title>
-  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
   <style>
     body {
       font-family: sans-serif;
@@ -17,6 +17,7 @@
     #videoContainer {
       position: relative;
       width: 100%;
+      max-width: 100%;
       height: 70vh;
       background: #000;
       display: flex;
@@ -100,7 +101,6 @@
       background: #f5f5f5;
       color: #111;
     }
-
     body[data-theme="light"] #status { color: #333; }
     body[data-theme="light"] #timer { color: #555; }
     body[data-theme="light"] button { color: #fff; }
@@ -141,7 +141,7 @@
   <audio id="connectSound" src="https://www.myinstants.com/media/sounds/iphone-notification.mp3"></audio>
 
   <script>
-    (async function () {
+    (async function(){
       const firebaseConfig = {
         apiKey: "AIzaSyB1VbLbqBxCiG_bfGoQgQyapXwHUQ-Q7BU",
         authDomain: "tamil-chat-2d54e.firebaseapp.com",
@@ -165,28 +165,29 @@
       const fullscreenBtn = document.getElementById('fullscreenBtn');
       const themeBtn = document.getElementById('themeBtn');
       const statusEl = document.getElementById('status');
-      const timerEl = document.getElementById('timer');
       const connectSound = document.getElementById('connectSound');
+      const timerEl = document.getElementById('timer');
 
-      const clientId = 'c_' + Math.random().toString(36).substr(2, 8);
+      const clientId = 'c_' + Math.random().toString(36).substr(2,8);
       let queueKey = null, callId = null, isInitiator = false;
       let pc = null, localStream = null;
       let localCandidatesRef = null, remoteCandidatesRef = null;
-      let timerInterval = null, startTime = null;
 
       const iceConfig = { iceServers: [{ urls: "stun:stun.l.google.com:19302" }] };
+      let timerInterval = null;
+      let startTime = null;
 
       function setStatus(msg) { statusEl.textContent = msg; }
       function showOverlay(show) { waitingOverlay.style.display = show ? 'flex' : 'none'; }
 
-      async function getLocalStream() {
-        if (localStream) return localStream;
-        localStream = await navigator.mediaDevices.getUserMedia({ video: true, audio: true });
+      async function getLocalStream(){
+        if(localStream) return localStream;
+        localStream = await navigator.mediaDevices.getUserMedia({video:true,audio:true});
         localVideo.srcObject = localStream;
         return localStream;
       }
 
-      async function enterQueue() {
+      async function enterQueue(){
         const qRef = db.ref('queue');
         const newRef = qRef.push();
         queueKey = newRef.key;
@@ -198,92 +199,79 @@
         watchPairForUs();
       }
 
-      function watchQueue() {
+      function watchQueue(){
         db.ref('queue').on('child_added', async (snap) => {
-          if (snap.key === queueKey) return;
+          if(snap.key === queueKey) return;
           const otherKey = snap.key;
-          const pairRef = db.ref('pairs/' + otherKey);
-          await pairRef.transaction(current => {
-            if (current === null) return { a: otherKey, b: queueKey, created: Date.now() };
+          const pairRef = db.ref('pairs/'+otherKey);
+          await pairRef.transaction(current=>{
+            if(current===null) return {a:otherKey,b:queueKey,created:Date.now()};
             return;
-          }, async (err, committed, snap2) => {
-            if (committed) {
+          }, async (err, committed, snap2)=>{
+            if(committed){
               const ids = [otherKey, queueKey].sort();
-              callId = "call_" + ids[0] + "_" + ids[1];
+              callId = "call_"+ids[0]+"_"+ids[1];
               isInitiator = true;
-              db.ref('queue/' + otherKey).remove();
-              db.ref('queue/' + queueKey).remove();
+              db.ref('queue/'+otherKey).remove();
+              db.ref('queue/'+queueKey).remove();
               startCall(callId);
             }
           });
         });
       }
 
-      function watchPairForUs() {
-        db.ref('pairs/' + queueKey).on('value', snap => {
+      function watchPairForUs(){
+        db.ref('pairs/'+queueKey).on('value', snap=>{
           const val = snap.val();
-          if (val && !callId) {
-            const other = val.a === queueKey ? val.b : val.a;
-            const ids = [other, queueKey].sort();
-            callId = "call_" + ids[0] + "_" + ids[1];
-            isInitiator = false;
-            db.ref('queue/' + other).remove();
-            db.ref('queue/' + queueKey).remove();
+          if(val && !callId){
+            const other = val.a===queueKey?val.b:val.a;
+            const ids=[other,queueKey].sort();
+            callId="call_"+ids[0]+"_"+ids[1];
+            isInitiator=false;
+            db.ref('queue/'+other).remove();
+            db.ref('queue/'+queueKey).remove();
             startCall(callId);
           }
         });
       }
 
-      async function startCall(id) {
+      async function startCall(id){
         await getLocalStream();
         setStatus('Starting call...');
         pc = new RTCPeerConnection(iceConfig);
-
-        pc.ontrack = e => {
-          if (remoteVideo.srcObject !== e.streams[0]) {
-            remoteVideo.srcObject = e.streams[0];
-          }
+        localStream.getTracks().forEach(t=>pc.addTrack(t,localStream));
+        pc.ontrack = e=>{ remoteVideo.srcObject = e.streams[0]; };
+        pc.onicecandidate = e=>{
+          if(e.candidate && localCandidatesRef) localCandidatesRef.push(e.candidate.toJSON());
         };
 
-        pc.onicecandidate = e => {
-          if (e.candidate && localCandidatesRef) {
-            localCandidatesRef.push(e.candidate.toJSON());
-          }
-        };
-
-        localStream.getTracks().forEach(track => pc.addTrack(track, localStream));
-
-        const callRef = db.ref('calls/' + id);
+        const callRef = db.ref('calls/'+id);
         const offerRef = callRef.child('offer');
         const answerRef = callRef.child('answer');
-        localCandidatesRef = callRef.child(isInitiator ? 'offerCandidates' : 'answerCandidates');
-        remoteCandidatesRef = callRef.child(isInitiator ? 'answerCandidates' : 'offerCandidates');
+        localCandidatesRef = callRef.child(isInitiator?'offerCandidates':'answerCandidates');
+        remoteCandidatesRef = callRef.child(isInitiator?'answerCandidates':'offerCandidates');
 
-        remoteCandidatesRef.on('child_added', snap => {
-          const c = snap.val();
-          if (c) pc.addIceCandidate(new RTCIceCandidate(c));
+        remoteCandidatesRef.on('child_added', snap=>{
+          const c=snap.val();
+          if(c) pc.addIceCandidate(new RTCIceCandidate(c));
         });
 
-        if (isInitiator) {
+        if(isInitiator){
           const offer = await pc.createOffer();
           await pc.setLocalDescription(offer);
-          await offerRef.set({ type: offer.type, sdp: offer.sdp });
-
-          answerRef.on('value', async snap => {
-            const data = snap.val();
-            if (data?.sdp && !pc.remoteDescription) {
-              await pc.setRemoteDescription(new RTCSessionDescription(data));
-            }
+          offerRef.set({type:offer.type,sdp:offer.sdp});
+          answerRef.on('value', async snap=>{
+            const data=snap.val();
+            if(data && data.sdp) await pc.setRemoteDescription(new RTCSessionDescription(data));
           });
-
         } else {
-          offerRef.on('value', async snap => {
-            const data = snap.val();
-            if (data?.sdp && !pc.remoteDescription) {
+          offerRef.on('value', async snap=>{
+            const data=snap.val();
+            if(data && data.sdp && !pc.remoteDescription){
               await pc.setRemoteDescription(new RTCSessionDescription(data));
               const answer = await pc.createAnswer();
               await pc.setLocalDescription(answer);
-              await answerRef.set({ type: answer.type, sdp: answer.sdp });
+              answerRef.set({type:answer.type,sdp:answer.sdp});
             }
           });
         }
@@ -297,42 +285,28 @@
         setStatus('Connected!');
         showOverlay(false);
         startTimer();
-        connectSound.play().catch(() => {});
+        connectSound.play().catch(()=>{});
       }
 
-      async function hangUp() {
-        if (pc) pc.close();
-        if (callId) await db.ref('calls/' + callId).remove();
-        if (queueKey) await db.ref('queue/' + queueKey).remove();
-
-        // Stop media
-        if (localStream) {
-          localStream.getTracks().forEach(t => t.stop());
-          localVideo.srcObject = null;
-        }
-        if (remoteVideo.srcObject) {
-          remoteVideo.srcObject.getTracks().forEach(t => t.stop?.());
-          remoteVideo.srcObject = null;
-        }
-
-        callId = null;
-        pc = null;
-        localStream = null;
-
+      async function hangUp(){
+        if(pc) pc.close();
+        if(callId) await db.ref('calls/'+callId).remove();
+        if(queueKey) await db.ref('queue/'+queueKey).remove();
+        callId=null; pc=null;
         startBtn.disabled = false;
         hangBtn.disabled = true;
         muteBtn.disabled = true;
         camBtn.disabled = true;
         nextBtn.disabled = true;
-
         setStatus('Idle');
         stopTimer();
         showOverlay(true);
       }
 
-      function startTimer() {
+      function startTimer(){
         startTime = Date.now();
-        timerInterval = setInterval(() => {
+        timerEl.textContent = 'Call Duration: 00:00';
+        timerInterval = setInterval(()=>{
           const diff = Date.now() - startTime;
           const mins = String(Math.floor(diff / 60000)).padStart(2, '0');
           const secs = String(Math.floor((diff % 60000) / 1000)).padStart(2, '0');
@@ -340,17 +314,14 @@
         }, 1000);
       }
 
-      function stopTimer() {
+      function stopTimer(){
         clearInterval(timerInterval);
         timerEl.textContent = 'Call Duration: 00:00';
       }
 
       startBtn.onclick = () => getLocalStream().then(enterQueue);
       hangBtn.onclick = hangUp;
-      nextBtn.onclick = async () => {
-        await hangUp();
-        getLocalStream().then(enterQueue);
-      };
+      nextBtn.onclick = async () => { await hangUp(); getLocalStream().then(enterQueue); };
 
       muteBtn.onclick = () => {
         const t = localStream.getAudioTracks()[0];
@@ -364,6 +335,12 @@
         camBtn.textContent = t.enabled ? 'Camera Off' : 'Camera On';
       };
 
+      themeBtn.onclick = () => {
+        const current = document.body.getAttribute('data-theme');
+        document.body.setAttribute('data-theme', current === 'dark' ? 'light' : 'dark');
+        themeBtn.textContent = current === 'dark' ? '☀️ Theme' : '🌙 Theme';
+      };
+
       fullscreenBtn.onclick = () => {
         const elem = document.documentElement;
         if (!document.fullscreenElement) {
@@ -371,21 +348,6 @@
         } else {
           document.exitFullscreen();
         }
-      };
-
-      // Theme toggle with persistence
-      const savedTheme = localStorage.getItem('theme');
-      if (savedTheme) {
-        document.body.setAttribute('data-theme', savedTheme);
-        themeBtn.textContent = savedTheme === 'light' ? '☀️ Theme' : '🌙 Theme';
-      }
-
-      themeBtn.onclick = () => {
-        const current = document.body.getAttribute('data-theme');
-        const next = current === 'dark' ? 'light' : 'dark';
-        document.body.setAttribute('data-theme', next);
-        themeBtn.textContent = next === 'dark' ? '🌙 Theme' : '☀️ Theme';
-        localStorage.setItem('theme', next);
       };
     })();
   </script>
