@@ -5,94 +5,34 @@
   <title>Random Video Chat - Tamil VM</title>
   <meta name="viewport" content="width=device-width,initial-scale=1" />
   <style>
-    body {
-      font-family: sans-serif;
-      background: #111;
-      color: #eee;
-      margin: 0;
-      padding: 20px;
-      text-align: center;
-    }
-    video {
-      width: 45%;
-      max-width: 400px;
-      border-radius: 10px;
-      margin: 5px;
-      background: #000;
-    }
-    .controls {
-      margin-top: 15px;
-    }
-    button {
-      padding: 10px 15px;
-      margin: 5px;
-      border: none;
-      border-radius: 6px;
-      font-size: 16px;
-      cursor: pointer;
-    }
-    button.primary {
-      background: #10b981;
-      color: #fff;
-    }
-    button.secondary {
-      background: #444;
-      color: #fff;
-    }
-    #status {
-      display: block;
-      margin-top: 10px;
-      color: #bbb;
-    }
-    #remoteWrapper {
-      position: relative;
-      display: inline-block;
-    }
-    #remoteOverlay {
-      position: absolute;
-      top: 0;
-      left: 0;
-      width: 100%;
-      height: 100%;
-      background: rgba(0,0,0,0.6);
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      color: #fff;
-      font-size: 18px;
-      border-radius: 10px;
-    }
+    body{font-family:sans-serif;background:#111;color:#eee;margin:0;padding:20px;text-align:center}
+    video{width:45%;max-width:400px;border-radius:10px;margin:5px;background:#000}
+    .controls{margin-top:15px}
+    button{padding:10px 15px;margin:5px;border:none;border-radius:6px;font-size:16px;cursor:pointer}
+    button.primary{background:#10b981;color:#fff}
+    button.secondary{background:#444;color:#fff}
+    #status{display:block;margin-top:10px;color:#bbb}
   </style>
-
   <!-- Firebase -->
   <script src="https://www.gstatic.com/firebasejs/9.22.2/firebase-app-compat.js"></script>
   <script src="https://www.gstatic.com/firebasejs/9.22.2/firebase-database-compat.js"></script>
 </head>
 <body>
-
   <h2>🔥 Random Video Chat - Tamil VM</h2>
-
   <video id="localVideo" autoplay muted playsinline></video>
-
-  <div id="remoteWrapper">
-    <video id="remoteVideo" autoplay playsinline></video>
-    <div id="remoteOverlay">Looking for partner...</div>
-  </div>
+  <video id="remoteVideo" autoplay playsinline></video>
 
   <div class="controls">
     <button id="startBtn" class="primary">Find Partner</button>
     <button id="hangBtn" class="secondary" disabled>Hang Up</button>
     <button id="muteBtn" class="secondary" disabled>Mute</button>
     <button id="camBtn" class="secondary" disabled>Camera Off</button>
-    <button id="blockBtn" class="secondary" disabled>Block User</button>
     <span id="status">Idle</span>
   </div>
 
-  <!-- Sound when connected -->
-  <audio id="connectSound" src="connected.mp3" preload="auto"></audio>
-
 <script>
 (async function(){
+  // === Your Firebase Config ===
   const firebaseConfig = {
     apiKey: "AIzaSyB1VbLbqBxCiG_bfGoQgQyapXwHUQ-Q7BU",
     authDomain: "tamil-chat-2d54e.firebaseapp.com",
@@ -105,17 +45,16 @@
   firebase.initializeApp(firebaseConfig);
   const db = firebase.database();
 
+  // === UI Elements ===
   const localVideo = document.getElementById('localVideo');
   const remoteVideo = document.getElementById('remoteVideo');
   const startBtn = document.getElementById('startBtn');
   const hangBtn = document.getElementById('hangBtn');
   const muteBtn = document.getElementById('muteBtn');
   const camBtn = document.getElementById('camBtn');
-  const blockBtn = document.getElementById('blockBtn');
   const statusEl = document.getElementById('status');
-  const connectSound = document.getElementById('connectSound');
-  const remoteOverlay = document.getElementById('remoteOverlay');
 
+  // === Global State ===
   const clientId = 'c_' + Math.random().toString(36).substr(2,8);
   let queueKey = null, callId = null, isInitiator = false;
   let pc = null, localStream = null;
@@ -127,14 +66,7 @@
 
   async function getLocalStream(){
     if(localStream) return localStream;
-    localStream = await navigator.mediaDevices.getUserMedia({
-      video: true,
-      audio: {
-        echoCancellation: true,
-        noiseSuppression: true,
-        autoGainControl: true
-      }
-    });
+    localStream = await navigator.mediaDevices.getUserMedia({video:true,audio:true});
     localVideo.srcObject = localStream;
     return localStream;
   }
@@ -146,7 +78,6 @@
     await newRef.set({ id: clientId, ts: Date.now() });
     newRef.onDisconnect().remove();
     setStatus('Waiting for partner...');
-    remoteOverlay.style.display = 'flex';
     watchQueue();
     watchPairForUs();
   }
@@ -154,13 +85,6 @@
   function watchQueue(){
     db.ref('queue').on('child_added', async (snap) => {
       if(snap.key === queueKey) return;
-      const otherClientId = snap.val().id;
-
-      // Check if this user is blocked
-      const blockedSnap = await db.ref('blocked/' + clientId).once('value');
-      const blocked = blockedSnap.val() || {};
-      if (blocked[otherClientId]) return;
-
       const otherKey = snap.key;
       const pairRef = db.ref('pairs/'+otherKey);
       await pairRef.transaction(current=>{
@@ -199,16 +123,9 @@
     setStatus('Starting call...');
     pc = new RTCPeerConnection(iceConfig);
     localStream.getTracks().forEach(t=>pc.addTrack(t,localStream));
-
-    pc.ontrack = e => {
-      remoteVideo.srcObject = e.streams[0];
-      remoteOverlay.style.display = 'none';
-      connectSound.play().catch(()=>{});
-    };
-
-    pc.onicecandidate = e => {
-      if(e.candidate && localCandidatesRef)
-        localCandidatesRef.push(e.candidate.toJSON());
+    pc.ontrack = e=>{remoteVideo.srcObject=e.streams[0];};
+    pc.onicecandidate = e=>{
+      if(e.candidate && localCandidatesRef) localCandidatesRef.push(e.candidate.toJSON());
     };
 
     const callRef = db.ref('calls/'+id);
@@ -217,8 +134,8 @@
     localCandidatesRef = callRef.child(isInitiator?'offerCandidates':'answerCandidates');
     remoteCandidatesRef = callRef.child(isInitiator?'answerCandidates':'offerCandidates');
 
-    remoteCandidatesRef.on('child_added', snap => {
-      const c = snap.val();
+    remoteCandidatesRef.on('child_added', snap=>{
+      const c=snap.val();
       if(c) pc.addIceCandidate(new RTCIceCandidate(c));
     });
 
@@ -226,27 +143,26 @@
       const offer = await pc.createOffer();
       await pc.setLocalDescription(offer);
       offerRef.set({type:offer.type,sdp:offer.sdp});
-      answerRef.on('value', async snap => {
-        const data = snap.val();
+      answerRef.on('value', async snap=>{
+        const data=snap.val();
         if(data && data.sdp) await pc.setRemoteDescription(new RTCSessionDescription(data));
       });
-    } else {
-      offerRef.on('value', async snap => {
-        const data = snap.val();
+    }else{
+      offerRef.on('value', async snap=>{
+        const data=snap.val();
         if(data && data.sdp && !pc.remoteDescription){
           await pc.setRemoteDescription(new RTCSessionDescription(data));
-          const answer = await pc.createAnswer();
+          const answer=await pc.createAnswer();
           await pc.setLocalDescription(answer);
           answerRef.set({type:answer.type,sdp:answer.sdp});
         }
       });
     }
 
-    startBtn.disabled = true;
-    hangBtn.disabled = false;
-    muteBtn.disabled = false;
-    camBtn.disabled = false;
-    blockBtn.disabled = false;
+    startBtn.disabled=true;
+    hangBtn.disabled=false;
+    muteBtn.disabled=false;
+    camBtn.disabled=false;
     setStatus('Connected!');
   }
 
@@ -254,39 +170,27 @@
     if(pc) pc.close();
     if(callId) await db.ref('calls/'+callId).remove();
     if(queueKey) await db.ref('queue/'+queueKey).remove();
-    callId = null; pc = null;
-    startBtn.disabled = false;
-    hangBtn.disabled = true;
-    muteBtn.disabled = true;
-    camBtn.disabled = true;
-    blockBtn.disabled = true;
+    callId=null; pc=null;
+    startBtn.disabled=false;
+    hangBtn.disabled=true;
+    muteBtn.disabled=true;
+    camBtn.disabled=true;
     setStatus('Idle');
-    remoteOverlay.style.display = 'flex';
   }
 
-  async function blockUser(){
-    if (!callId || !queueKey) return;
-    const blockedUser = isInitiator ? callId.split('_')[2] : callId.split('_')[1];
-    await db.ref('blocked/' + clientId).child(blockedUser).set(true);
-    alert("User has been blocked. You won't be matched with them again.");
-    hangUp();
-  }
-
-  startBtn.onclick = () => {
-    getLocalStream().then(enterQueue);
+  // UI events
+  startBtn.onclick=()=>{getLocalStream().then(enterQueue);};
+  hangBtn.onclick=hangUp;
+  muteBtn.onclick=()=>{
+    const t=localStream.getAudioTracks()[0];
+    t.enabled=!t.enabled;
+    muteBtn.textContent=t.enabled?'Mute':'Unmute';
   };
-  hangBtn.onclick = hangUp;
-  muteBtn.onclick = () => {
-    const t = localStream.getAudioTracks()[0];
-    t.enabled = !t.enabled;
-    muteBtn.textContent = t.enabled ? 'Mute' : 'Unmute';
+  camBtn.onclick=()=>{
+    const t=localStream.getVideoTracks()[0];
+    t.enabled=!t.enabled;
+    camBtn.textContent=t.enabled?'Camera Off':'Camera On';
   };
-  camBtn.onclick = () => {
-    const t = localStream.getVideoTracks()[0];
-    t.enabled = !t.enabled;
-    camBtn.textContent = t.enabled ? 'Camera Off' : 'Camera On';
-  };
-  blockBtn.onclick = blockUser;
 
 })();
 </script>
