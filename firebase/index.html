@@ -5,34 +5,71 @@
   <title>Random Video Chat - Tamil VM</title>
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <style>
-    /* Your CSS remains the same — no changes needed */
-    body { font-family: sans-serif; background: #111; color: #eee; margin: 0; padding: 0; transition: background 0.3s, color 0.3s; }
-    #videoContainer { position: relative; width: 100%; max-width: 100%; height: 70vh; background: #000; display: flex; justify-content: center; align-items: center; overflow: hidden; }
-    #remoteVideo { width: 100%; height: 100%; object-fit: cover; background: #000; }
-    #localVideo { position: absolute; top: 10px; right: 10px; width: 160px; height: 120px; object-fit: cover; border: 2px solid white; border-radius: 8px; z-index: 2; }
-    #waitingOverlay { position: absolute; top: 0; left: 0; right: 0; bottom: 0; background: rgba(0, 0, 0, 0.7); color: white; font-size: 22px; display: flex; align-items: center; justify-content: center; z-index: 1; }
-    .controls { text-align: center; margin: 15px; }
-    button { padding: 10px 15px; margin: 5px; border: none; border-radius: 6px; font-size: 16px; cursor: pointer; color: #fff; transition: background 0.3s; }
-    #startBtn { background: #2563eb; }
-    #hangBtn { background: #ef4444; }
-    #muteBtn { background: #f59e0b; }
-    #camBtn { background: #8b5cf6; }
-    #nextBtn { background: #10b981; }
-    #themeBtn { background: #374151; }
-    #fullscreenBtn { background: #4b5563; }
-    #status { display: block; margin-top: 10px; color: #bbb; }
-    #timer { font-size: 14px; color: #aaa; display: block; margin-top: 5px; }
-    body[data-theme="light"] { background: #f5f5f5; color: #111; }
-    body[data-theme="light"] #status { color: #333; }
-    body[data-theme="light"] #timer { color: #555; }
-    body[data-theme="light"] button { color: #fff; }
-    body[data-theme="light"] #startBtn { background: #3b82f6; }
-    body[data-theme="light"] #hangBtn { background: #dc2626; }
-    body[data-theme="light"] #muteBtn { background: #f59e0b; }
-    body[data-theme="light"] #camBtn { background: #8b5cf6; }
-    body[data-theme="light"] #nextBtn { background: #10b981; }
-    body[data-theme="light"] #themeBtn { background: #64748b; }
-    body[data-theme="light"] #fullscreenBtn { background: #6b7280; }
+    body { 
+      font-family: Arial, sans-serif; 
+      background: #fff; 
+      margin: 0; 
+      padding: 0; 
+      text-align: center; 
+    }
+    h2 { margin: 10px; }
+    #videoContainer {
+      position: relative;
+      width: 95%;
+      max-width: 900px;
+      height: 60vh;
+      background: #000;
+      margin: 0 auto;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+    #remoteVideo { 
+      width: 100%; 
+      height: 100%; 
+      object-fit: cover; 
+      background: #000; 
+    }
+    #localVideo {
+      position: absolute;
+      bottom: 10px;
+      right: 10px;
+      width: 140px;
+      height: 100px;
+      object-fit: cover;
+      border: 2px solid #fff;
+      border-radius: 4px;
+    }
+    #waitingOverlay {
+      position: absolute; 
+      top: 0; left: 0; right: 0; bottom: 0;
+      display: flex; 
+      justify-content: center; 
+      align-items: center;
+      color: #fff; 
+      background: rgba(0,0,0,0.6);
+      font-size: 18px;
+    }
+    .controls {
+      margin-top: 15px;
+    }
+    button {
+      padding: 10px 14px;
+      margin: 5px;
+      border: none;
+      border-radius: 6px;
+      font-size: 14px;
+      color: #fff;
+      cursor: pointer;
+    }
+    .male { background: #1d4ed8; }
+    .female { background: #16a34a; }
+    .next { background: #f59e0b; }
+    .mic { background: #dc2626; }
+    .cam { background: #8b5cf6; }
+    .cancel { background: #6b7280; }
+    #status { display: block; margin-top: 10px; color: #555; }
+    #timer { font-size: 13px; color: #777; margin-top: 5px; }
   </style>
 
   <!-- Firebase -->
@@ -40,8 +77,8 @@
   <script src="https://www.gstatic.com/firebasejs/9.22.2/firebase-database-compat.js"></script>
 </head>
 
-<body data-theme="dark">
-  <h2 style="text-align:center">🔥 Random Video Chat - Tamil VM</h2>
+<body>
+  <h2>🎥 Random Video Chat</h2>
   <div id="videoContainer">
     <video id="remoteVideo" autoplay playsinline></video>
     <video id="localVideo" autoplay muted playsinline></video>
@@ -49,13 +86,12 @@
   </div>
 
   <div class="controls">
-    <button id="startBtn">Find Partner</button>
-    <button id="nextBtn" disabled>Next</button>
-    <button id="hangBtn" disabled>Hang Up</button>
-    <button id="muteBtn" disabled>Mute</button>
-    <button id="camBtn" disabled>Camera Off</button>
-    <button id="fullscreenBtn">🖵 Fullscreen</button>
-    <button id="themeBtn">🌙 Theme</button>
+    <button id="startMale" class="male">Start ♂ Male</button>
+    <button id="startFemale" class="female">Start ♀ Female</button>
+    <button id="nextBtn" class="next" disabled>Find Next Partner</button>
+    <button id="muteBtn" class="mic" disabled>Mic Off</button>
+    <button id="camBtn" class="cam" disabled>Cam Off</button>
+    <button id="cancelBtn" class="cancel" disabled>Cancel Connection</button>
     <span id="status">Idle</span>
     <span id="timer">Call Duration: 00:00</span>
   </div>
@@ -64,6 +100,7 @@
 
   <script>
     (async function () {
+      // Firebase Config
       const firebaseConfig = {
         apiKey: "AIzaSyB1VbLbqBxCiG_bfGoQgQyapXwHUQ-Q7BU",
         authDomain: "tamil-chat-2d54e.firebaseapp.com",
@@ -79,16 +116,16 @@
       const localVideo = document.getElementById('localVideo');
       const remoteVideo = document.getElementById('remoteVideo');
       const waitingOverlay = document.getElementById('waitingOverlay');
-      const startBtn = document.getElementById('startBtn');
-      const nextBtn = document.getElementById('nextBtn');
-      const hangBtn = document.getElementById('hangBtn');
-      const muteBtn = document.getElementById('muteBtn');
-      const camBtn = document.getElementById('camBtn');
-      const fullscreenBtn = document.getElementById('fullscreenBtn');
-      const themeBtn = document.getElementById('themeBtn');
       const statusEl = document.getElementById('status');
       const connectSound = document.getElementById('connectSound');
       const timerEl = document.getElementById('timer');
+
+      const startMale = document.getElementById('startMale');
+      const startFemale = document.getElementById('startFemale');
+      const nextBtn = document.getElementById('nextBtn');
+      const cancelBtn = document.getElementById('cancelBtn');
+      const muteBtn = document.getElementById('muteBtn');
+      const camBtn = document.getElementById('camBtn');
 
       const clientId = 'c_' + Math.random().toString(36).substr(2, 8);
       let queueKey = null, callId = null, isInitiator = false;
@@ -107,11 +144,11 @@
         return localStream;
       }
 
-      async function enterQueue() {
+      async function enterQueue(gender) {
         const qRef = db.ref('queue');
         const newRef = qRef.push();
         queueKey = newRef.key;
-        await newRef.set({ id: clientId, ts: Date.now() });
+        await newRef.set({ id: clientId, gender, ts: Date.now() });
         newRef.onDisconnect().remove();
         setStatus('Waiting for partner...');
         showOverlay(true);
@@ -198,11 +235,13 @@
           });
         }
 
-        startBtn.disabled = true;
-        hangBtn.disabled = false;
+        // enable buttons
+        startMale.disabled = true;
+        startFemale.disabled = true;
+        nextBtn.disabled = false;
+        cancelBtn.disabled = false;
         muteBtn.disabled = false;
         camBtn.disabled = false;
-        nextBtn.disabled = false;
 
         setStatus('Connected!');
         showOverlay(false);
@@ -229,11 +268,12 @@
         callId = null;
         pc = null;
 
-        startBtn.disabled = false;
-        hangBtn.disabled = true;
+        startMale.disabled = false;
+        startFemale.disabled = false;
+        nextBtn.disabled = true;
+        cancelBtn.disabled = true;
         muteBtn.disabled = true;
         camBtn.disabled = true;
-        nextBtn.disabled = true;
 
         setStatus('Idle');
         stopTimer();
@@ -255,49 +295,23 @@
         timerEl.textContent = 'Call Duration: 00:00';
       }
 
-      // Button Events
-      startBtn.onclick = () => getLocalStream().then(enterQueue);
-      hangBtn.onclick = hangUp;
-      nextBtn.onclick = async () => {
-        await hangUp();
-        getLocalStream().then(enterQueue);
-      };
+      // Buttons
+      startMale.onclick = () => getLocalStream().then(() => enterQueue('male'));
+      startFemale.onclick = () => getLocalStream().then(() => enterQueue('female'));
+      nextBtn.onclick = async () => { await hangUp(); getLocalStream().then(() => enterQueue('any')); };
+      cancelBtn.onclick = hangUp;
 
       muteBtn.onclick = () => {
         const t = localStream.getAudioTracks()[0];
         t.enabled = !t.enabled;
-        muteBtn.textContent = t.enabled ? 'Mute' : 'Unmute';
+        muteBtn.textContent = t.enabled ? 'Mic Off' : 'Mic On';
       };
 
       camBtn.onclick = () => {
         const t = localStream.getVideoTracks()[0];
         t.enabled = !t.enabled;
-        camBtn.textContent = t.enabled ? 'Camera Off' : 'Camera On';
+        camBtn.textContent = t.enabled ? 'Cam Off' : 'Cam On';
       };
-
-      themeBtn.onclick = () => {
-        const current = document.body.getAttribute('data-theme');
-        const next = current === 'dark' ? 'light' : 'dark';
-        document.body.setAttribute('data-theme', next);
-        themeBtn.textContent = next === 'dark' ? '🌙 Theme' : '☀️ Theme';
-        localStorage.setItem('theme', next);
-      };
-
-      fullscreenBtn.onclick = () => {
-        const elem = document.documentElement;
-        if (!document.fullscreenElement) {
-          elem.requestFullscreen().catch(err => alert("Error: " + err.message));
-        } else {
-          document.exitFullscreen();
-        }
-      };
-
-      // Load saved theme
-      const savedTheme = localStorage.getItem('theme');
-      if (savedTheme) {
-        document.body.setAttribute('data-theme', savedTheme);
-        themeBtn.textContent = savedTheme === 'dark' ? '🌙 Theme' : '☀️ Theme';
-      }
     })();
   </script>
 </body>
