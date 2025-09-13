@@ -10,20 +10,61 @@
       background: #111;
       color: #eee;
       margin: 0;
-      padding: 20px;
-      text-align: center;
+      padding: 0;
       transition: background 0.3s, color 0.3s;
     }
-    video {
-      width: 45%;
-      max-width: 400px;
-      border-radius: 10px;
-      margin: 5px;
+
+    #videoContainer {
+      position: relative;
+      width: 100%;
+      max-width: 100%;
+      height: 70vh;
+      background: #000;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      overflow: hidden;
+    }
+
+    #remoteVideo {
+      width: 100%;
+      height: 100%;
+      object-fit: cover;
       background: #000;
     }
-    .controls {
-      margin-top: 15px;
+
+    #localVideo {
+      position: absolute;
+      top: 10px;
+      right: 10px;
+      width: 160px;
+      height: 120px;
+      object-fit: cover;
+      border: 2px solid white;
+      border-radius: 8px;
+      z-index: 2;
     }
+
+    #waitingOverlay {
+      position: absolute;
+      top: 0;
+      left: 0;
+      right: 0;
+      bottom: 0;
+      background: rgba(0, 0, 0, 0.7);
+      color: white;
+      font-size: 22px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      z-index: 1;
+    }
+
+    .controls {
+      text-align: center;
+      margin: 15px;
+    }
+
     button {
       padding: 10px 15px;
       margin: 5px;
@@ -35,24 +76,13 @@
       transition: background 0.3s;
     }
 
-    #startBtn {
-      background: #2563eb; /* Blue */
-    }
-    #hangBtn {
-      background: #ef4444; /* Red */
-    }
-    #muteBtn {
-      background: #f59e0b; /* Orange */
-    }
-    #camBtn {
-      background: #8b5cf6; /* Purple */
-    }
-    #nextBtn {
-      background: #10b981; /* Teal */
-    }
-    #themeBtn {
-      background: #374151; /* Gray */
-    }
+    #startBtn { background: #2563eb; }
+    #hangBtn { background: #ef4444; }
+    #muteBtn { background: #f59e0b; }
+    #camBtn  { background: #8b5cf6; }
+    #nextBtn { background: #10b981; }
+    #themeBtn { background: #374151; }
+    #fullscreenBtn { background: #4b5563; }
 
     #status {
       display: block;
@@ -67,27 +97,20 @@
       margin-top: 5px;
     }
 
-    /* Light Theme */
     body[data-theme="light"] {
       background: #f5f5f5;
       color: #111;
     }
-    body[data-theme="light"] #status {
-      color: #333;
-    }
-    body[data-theme="light"] #timer {
-      color: #555;
-    }
-    body[data-theme="light"] button {
-      color: #fff;
-    }
+    body[data-theme="light"] #status { color: #333; }
+    body[data-theme="light"] #timer { color: #555; }
+    body[data-theme="light"] button { color: #fff; }
     body[data-theme="light"] #startBtn { background: #3b82f6; }
     body[data-theme="light"] #hangBtn { background: #dc2626; }
     body[data-theme="light"] #muteBtn { background: #f59e0b; }
     body[data-theme="light"] #camBtn  { background: #8b5cf6; }
     body[data-theme="light"] #nextBtn { background: #10b981; }
     body[data-theme="light"] #themeBtn { background: #64748b; }
-
+    body[data-theme="light"] #fullscreenBtn { background: #6b7280; }
   </style>
 
   <!-- Firebase -->
@@ -95,10 +118,13 @@
   <script src="https://www.gstatic.com/firebasejs/9.22.2/firebase-database-compat.js"></script>
 </head>
 <body data-theme="dark">
-  <h2>🔥 Random Video Chat - Tamil VM</h2>
+  <h2 style="text-align:center">🔥 Random Video Chat - Tamil VM</h2>
 
-  <video id="localVideo" autoplay muted playsinline></video>
-  <video id="remoteVideo" autoplay playsinline></video>
+  <div id="videoContainer">
+    <video id="remoteVideo" autoplay playsinline></video>
+    <video id="localVideo" autoplay muted playsinline></video>
+    <div id="waitingOverlay">🔍 Waiting for partner...</div>
+  </div>
 
   <div class="controls">
     <button id="startBtn">Find Partner</button>
@@ -106,228 +132,224 @@
     <button id="hangBtn" disabled>Hang Up</button>
     <button id="muteBtn" disabled>Mute</button>
     <button id="camBtn" disabled>Camera Off</button>
+    <button id="fullscreenBtn">🖵 Fullscreen</button>
     <button id="themeBtn">🌙 Theme</button>
     <span id="status">Idle</span>
     <span id="timer">Call Duration: 00:00</span>
   </div>
 
-  <!-- 🔊 Notification Sound -->
   <audio id="connectSound" src="https://www.myinstants.com/media/sounds/iphone-notification.mp3"></audio>
 
-<script>
-(async function(){
-  // Firebase config
-  const firebaseConfig = {
-    apiKey: "AIzaSyB1VbLbqBxCiG_bfGoQgQyapXwHUQ-Q7BU",
-    authDomain: "tamil-chat-2d54e.firebaseapp.com",
-    databaseURL: "https://tamil-chat-2d54e-default-rtdb.firebaseio.com",
-    projectId: "tamil-chat-2d54e",
-    storageBucket: "tamil-chat-2d54e.appspot.com",
-    messagingSenderId: "804705969240",
-    appId: "1:804705969240:web:658df281dd8360843c162d"
-  };
-  firebase.initializeApp(firebaseConfig);
-  const db = firebase.database();
+  <script>
+    (async function(){
+      const firebaseConfig = {
+        apiKey: "AIzaSyB1VbLbqBxCiG_bfGoQgQyapXwHUQ-Q7BU",
+        authDomain: "tamil-chat-2d54e.firebaseapp.com",
+        databaseURL: "https://tamil-chat-2d54e-default-rtdb.firebaseio.com",
+        projectId: "tamil-chat-2d54e",
+        storageBucket: "tamil-chat-2d54e.appspot.com",
+        messagingSenderId: "804705969240",
+        appId: "1:804705969240:web:658df281dd8360843c162d"
+      };
+      firebase.initializeApp(firebaseConfig);
+      const db = firebase.database();
 
-  // UI elements
-  const localVideo = document.getElementById('localVideo');
-  const remoteVideo = document.getElementById('remoteVideo');
-  const startBtn = document.getElementById('startBtn');
-  const nextBtn = document.getElementById('nextBtn');
-  const hangBtn = document.getElementById('hangBtn');
-  const muteBtn = document.getElementById('muteBtn');
-  const camBtn = document.getElementById('camBtn');
-  const themeBtn = document.getElementById('themeBtn');
-  const statusEl = document.getElementById('status');
-  const connectSound = document.getElementById('connectSound');
-  const timerEl = document.getElementById('timer');
+      const localVideo = document.getElementById('localVideo');
+      const remoteVideo = document.getElementById('remoteVideo');
+      const waitingOverlay = document.getElementById('waitingOverlay');
+      const startBtn = document.getElementById('startBtn');
+      const nextBtn = document.getElementById('nextBtn');
+      const hangBtn = document.getElementById('hangBtn');
+      const muteBtn = document.getElementById('muteBtn');
+      const camBtn = document.getElementById('camBtn');
+      const fullscreenBtn = document.getElementById('fullscreenBtn');
+      const themeBtn = document.getElementById('themeBtn');
+      const statusEl = document.getElementById('status');
+      const connectSound = document.getElementById('connectSound');
+      const timerEl = document.getElementById('timer');
 
-  // Variables
-  const clientId = 'c_' + Math.random().toString(36).substr(2,8);
-  let queueKey = null, callId = null, isInitiator = false;
-  let pc = null, localStream = null;
-  let localCandidatesRef = null, remoteCandidatesRef = null;
+      const clientId = 'c_' + Math.random().toString(36).substr(2,8);
+      let queueKey = null, callId = null, isInitiator = false;
+      let pc = null, localStream = null;
+      let localCandidatesRef = null, remoteCandidatesRef = null;
 
-  const iceConfig = { iceServers: [{ urls: "stun:stun.l.google.com:19302" }] };
+      const iceConfig = { iceServers: [{ urls: "stun:stun.l.google.com:19302" }] };
+      let timerInterval = null;
+      let startTime = null;
 
-  let timerInterval = null;
-  let startTime = null;
+      function setStatus(msg) { statusEl.textContent = msg; }
+      function showOverlay(show) { waitingOverlay.style.display = show ? 'flex' : 'none'; }
 
-  // Functions
-  function setStatus(msg) { statusEl.textContent = msg; }
-
-  async function getLocalStream(){
-    if(localStream) return localStream;
-    localStream = await navigator.mediaDevices.getUserMedia({video:true,audio:true});
-    localVideo.srcObject = localStream;
-    return localStream;
-  }
-
-  async function enterQueue(){
-    const qRef = db.ref('queue');
-    const newRef = qRef.push();
-    queueKey = newRef.key;
-    await newRef.set({ id: clientId, ts: Date.now() });
-    newRef.onDisconnect().remove();
-    setStatus('Waiting for partner...');
-    watchQueue();
-    watchPairForUs();
-  }
-
-  function watchQueue(){
-    db.ref('queue').on('child_added', async (snap) => {
-      if(snap.key === queueKey) return;
-      const otherKey = snap.key;
-      const pairRef = db.ref('pairs/'+otherKey);
-      await pairRef.transaction(current=>{
-        if(current===null) return {a:otherKey,b:queueKey,created:Date.now()};
-        return;
-      }, async (err, committed, snap2)=>{
-        if(committed){
-          const ids = [otherKey, queueKey].sort();
-          callId = "call_"+ids[0]+"_"+ids[1];
-          isInitiator = true;
-          db.ref('queue/'+otherKey).remove();
-          db.ref('queue/'+queueKey).remove();
-          startCall(callId);
-        }
-      });
-    });
-  }
-
-  function watchPairForUs(){
-    db.ref('pairs/'+queueKey).on('value', snap=>{
-      const val = snap.val();
-      if(val && !callId){
-        const other = val.a===queueKey?val.b:val.a;
-        const ids=[other,queueKey].sort();
-        callId="call_"+ids[0]+"_"+ids[1];
-        isInitiator=false;
-        db.ref('queue/'+other).remove();
-        db.ref('queue/'+queueKey).remove();
-        startCall(callId);
+      async function getLocalStream(){
+        if(localStream) return localStream;
+        localStream = await navigator.mediaDevices.getUserMedia({video:true,audio:true});
+        localVideo.srcObject = localStream;
+        return localStream;
       }
-    });
-  }
 
-  async function startCall(id){
-    await getLocalStream();
-    setStatus('Starting call...');
-    pc = new RTCPeerConnection(iceConfig);
-    localStream.getTracks().forEach(t=>pc.addTrack(t,localStream));
-    pc.ontrack = e=>{remoteVideo.srcObject=e.streams[0];};
-    pc.onicecandidate = e=>{
-      if(e.candidate && localCandidatesRef) localCandidatesRef.push(e.candidate.toJSON());
-    };
+      async function enterQueue(){
+        const qRef = db.ref('queue');
+        const newRef = qRef.push();
+        queueKey = newRef.key;
+        await newRef.set({ id: clientId, ts: Date.now() });
+        newRef.onDisconnect().remove();
+        setStatus('Waiting for partner...');
+        showOverlay(true);
+        watchQueue();
+        watchPairForUs();
+      }
 
-    const callRef = db.ref('calls/'+id);
-    const offerRef = callRef.child('offer');
-    const answerRef = callRef.child('answer');
-    localCandidatesRef = callRef.child(isInitiator?'offerCandidates':'answerCandidates');
-    remoteCandidatesRef = callRef.child(isInitiator?'answerCandidates':'offerCandidates');
+      function watchQueue(){
+        db.ref('queue').on('child_added', async (snap) => {
+          if(snap.key === queueKey) return;
+          const otherKey = snap.key;
+          const pairRef = db.ref('pairs/'+otherKey);
+          await pairRef.transaction(current=>{
+            if(current===null) return {a:otherKey,b:queueKey,created:Date.now()};
+            return;
+          }, async (err, committed, snap2)=>{
+            if(committed){
+              const ids = [otherKey, queueKey].sort();
+              callId = "call_"+ids[0]+"_"+ids[1];
+              isInitiator = true;
+              db.ref('queue/'+otherKey).remove();
+              db.ref('queue/'+queueKey).remove();
+              startCall(callId);
+            }
+          });
+        });
+      }
 
-    remoteCandidatesRef.on('child_added', snap=>{
-      const c=snap.val();
-      if(c) pc.addIceCandidate(new RTCIceCandidate(c));
-    });
+      function watchPairForUs(){
+        db.ref('pairs/'+queueKey).on('value', snap=>{
+          const val = snap.val();
+          if(val && !callId){
+            const other = val.a===queueKey?val.b:val.a;
+            const ids=[other,queueKey].sort();
+            callId="call_"+ids[0]+"_"+ids[1];
+            isInitiator=false;
+            db.ref('queue/'+other).remove();
+            db.ref('queue/'+queueKey).remove();
+            startCall(callId);
+          }
+        });
+      }
 
-    if(isInitiator){
-      const offer = await pc.createOffer();
-      await pc.setLocalDescription(offer);
-      offerRef.set({type:offer.type,sdp:offer.sdp});
-      answerRef.on('value', async snap=>{
-        const data=snap.val();
-        if(data && data.sdp) await pc.setRemoteDescription(new RTCSessionDescription(data));
-      });
-    }else{
-      offerRef.on('value', async snap=>{
-        const data=snap.val();
-        if(data && data.sdp && !pc.remoteDescription){
-          await pc.setRemoteDescription(new RTCSessionDescription(data));
-          const answer=await pc.createAnswer();
-          await pc.setLocalDescription(answer);
-          answerRef.set({type:answer.type,sdp:answer.sdp});
+      async function startCall(id){
+        await getLocalStream();
+        setStatus('Starting call...');
+        pc = new RTCPeerConnection(iceConfig);
+        localStream.getTracks().forEach(t=>pc.addTrack(t,localStream));
+        pc.ontrack = e=>{ remoteVideo.srcObject = e.streams[0]; };
+        pc.onicecandidate = e=>{
+          if(e.candidate && localCandidatesRef) localCandidatesRef.push(e.candidate.toJSON());
+        };
+
+        const callRef = db.ref('calls/'+id);
+        const offerRef = callRef.child('offer');
+        const answerRef = callRef.child('answer');
+        localCandidatesRef = callRef.child(isInitiator?'offerCandidates':'answerCandidates');
+        remoteCandidatesRef = callRef.child(isInitiator?'answerCandidates':'offerCandidates');
+
+        remoteCandidatesRef.on('child_added', snap=>{
+          const c=snap.val();
+          if(c) pc.addIceCandidate(new RTCIceCandidate(c));
+        });
+
+        if(isInitiator){
+          const offer = await pc.createOffer();
+          await pc.setLocalDescription(offer);
+          offerRef.set({type:offer.type,sdp:offer.sdp});
+          answerRef.on('value', async snap=>{
+            const data=snap.val();
+            if(data && data.sdp) await pc.setRemoteDescription(new RTCSessionDescription(data));
+          });
+        } else {
+          offerRef.on('value', async snap=>{
+            const data=snap.val();
+            if(data && data.sdp && !pc.remoteDescription){
+              await pc.setRemoteDescription(new RTCSessionDescription(data));
+              const answer = await pc.createAnswer();
+              await pc.setLocalDescription(answer);
+              answerRef.set({type:answer.type,sdp:answer.sdp});
+            }
+          });
         }
-      });
-    }
 
-    startBtn.disabled=true;
-    hangBtn.disabled=false;
-    muteBtn.disabled=false;
-    camBtn.disabled=false;
-    nextBtn.disabled = false;
+        startBtn.disabled = true;
+        hangBtn.disabled = false;
+        muteBtn.disabled = false;
+        camBtn.disabled = false;
+        nextBtn.disabled = false;
 
-    setStatus('Connected!');
+        setStatus('Connected!');
+        showOverlay(false);
+        startTimer();
+        connectSound.play().catch(()=>{});
+      }
 
-    startTimer();
+      async function hangUp(){
+        if(pc) pc.close();
+        if(callId) await db.ref('calls/'+callId).remove();
+        if(queueKey) await db.ref('queue/'+queueKey).remove();
+        callId=null; pc=null;
+        startBtn.disabled = false;
+        hangBtn.disabled = true;
+        muteBtn.disabled = true;
+        camBtn.disabled = true;
+        nextBtn.disabled = true;
+        setStatus('Idle');
+        stopTimer();
+        showOverlay(true);
+      }
 
-    // 🔊 Play sound
-    connectSound.play().catch(()=>{});
-  }
+      function startTimer(){
+        startTime = Date.now();
+        timerEl.textContent = 'Call Duration: 00:00';
+        timerInterval = setInterval(()=>{
+          const diff = Date.now() - startTime;
+          const mins = String(Math.floor(diff / 60000)).padStart(2, '0');
+          const secs = String(Math.floor((diff % 60000) / 1000)).padStart(2, '0');
+          timerEl.textContent = `Call Duration: ${mins}:${secs}`;
+        }, 1000);
+      }
 
-  async function hangUp(){
-    if(pc) pc.close();
-    if(callId) await db.ref('calls/'+callId).remove();
-    if(queueKey) await db.ref('queue/'+queueKey).remove();
-    callId=null; pc=null;
-    startBtn.disabled=false;
-    hangBtn.disabled=true;
-    muteBtn.disabled=true;
-    camBtn.disabled=true;
-    nextBtn.disabled = true;
-    setStatus('Idle');
-    stopTimer();
-  }
+      function stopTimer(){
+        clearInterval(timerInterval);
+        timerEl.textContent = 'Call Duration: 00:00';
+      }
 
-  // Timer functions
-  function startTimer() {
-    startTime = Date.now();
-    timerEl.textContent = 'Call Duration: 00:00';
-    timerInterval = setInterval(() => {
-      const diff = Date.now() - startTime;
-      const mins = String(Math.floor(diff / 60000)).padStart(2, '0');
-      const secs = String(Math.floor((diff % 60000) / 1000)).padStart(2, '0');
-      timerEl.textContent = `Call Duration: ${mins}:${secs}`;
-    }, 1000);
-  }
-  function stopTimer() {
-    clearInterval(timerInterval);
-    timerEl.textContent = 'Call Duration: 00:00';
-  }
+      startBtn.onclick = () => getLocalStream().then(enterQueue);
+      hangBtn.onclick = hangUp;
+      nextBtn.onclick = async () => { await hangUp(); getLocalStream().then(enterQueue); };
 
-  // UI events
-  startBtn.onclick = () => {
-    getLocalStream().then(enterQueue);
-  };
-  hangBtn.onclick = hangUp;
-  muteBtn.onclick = () => {
-    const t = localStream.getAudioTracks()[0];
-    t.enabled = !t.enabled;
-    muteBtn.textContent = t.enabled ? 'Mute' : 'Unmute';
-  };
-  camBtn.onclick = () => {
-    const t = localStream.getVideoTracks()[0];
-    t.enabled = !t.enabled;
-    camBtn.textContent = t.enabled ? 'Camera Off' : 'Camera On';
-  };
+      muteBtn.onclick = () => {
+        const t = localStream.getAudioTracks()[0];
+        t.enabled = !t.enabled;
+        muteBtn.textContent = t.enabled ? 'Mute' : 'Unmute';
+      };
 
-  nextBtn.onclick = async () => {
-    await hangUp();
-    getLocalStream().then(enterQueue);
-  };
+      camBtn.onclick = () => {
+        const t = localStream.getVideoTracks()[0];
+        t.enabled = !t.enabled;
+        camBtn.textContent = t.enabled ? 'Camera Off' : 'Camera On';
+      };
 
-  themeBtn.onclick = () => {
-    const current = document.body.getAttribute('data-theme');
-    if(current === 'dark') {
-      document.body.setAttribute('data-theme', 'light');
-      themeBtn.textContent = '🌙 Theme';
-    } else {
-      document.body.setAttribute('data-theme', 'dark');
-      themeBtn.textContent = '☀️ Theme';
-    }
-  };
+      themeBtn.onclick = () => {
+        const current = document.body.getAttribute('data-theme');
+        document.body.setAttribute('data-theme', current === 'dark' ? 'light' : 'dark');
+        themeBtn.textContent = current === 'dark' ? '☀️ Theme' : '🌙 Theme';
+      };
 
-})();
-</script>
+      fullscreenBtn.onclick = () => {
+        const elem = document.documentElement;
+        if (!document.fullscreenElement) {
+          elem.requestFullscreen().catch(err => alert("Error: " + err.message));
+        } else {
+          document.exitFullscreen();
+        }
+      };
+    })();
+  </script>
 </body>
 </html>
