@@ -1,113 +1,35 @@
-<!doctype html>
+<!DOCTYPE html>
 <html>
 <head>
   <meta charset="utf-8" />
   <title>Random Video Chat - Tamil VM</title>
-  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
   <style>
-    body {
-      font-family: sans-serif;
-      background: #111;
-      color: #eee;
-      margin: 0;
-      padding: 0;
-      transition: background 0.3s, color 0.3s;
-    }
-
-    #videoContainer {
-      position: relative;
-      width: 100%;
-      max-width: 100%;
-      height: 70vh;
-      background: #000;
-      display: flex;
-      justify-content: center;
-      align-items: center;
-      overflow: hidden;
-    }
-
-    #remoteVideo {
-      width: 100%;
-      height: 100%;
-      object-fit: cover;
-      background: #000;
-    }
-
-    #localVideo {
-      position: absolute;
-      top: 10px;
-      right: 10px;
-      width: 160px;
-      height: 120px;
-      object-fit: cover;
-      border: 2px solid white;
-      border-radius: 8px;
-      z-index: 2;
-    }
-
-    #waitingOverlay {
-      position: absolute;
-      top: 0;
-      left: 0;
-      right: 0;
-      bottom: 0;
-      background: rgba(0, 0, 0, 0.7);
-      color: white;
-      font-size: 22px;
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      z-index: 1;
-    }
-
-    .controls {
-      text-align: center;
-      margin: 15px;
-    }
-
-    button {
-      padding: 10px 15px;
-      margin: 5px;
-      border: none;
-      border-radius: 6px;
-      font-size: 16px;
-      cursor: pointer;
-      color: #fff;
-      transition: background 0.3s;
-    }
-
+    /* Your CSS remains the same — no changes needed */
+    body { font-family: sans-serif; background: #111; color: #eee; margin: 0; padding: 0; transition: background 0.3s, color 0.3s; }
+    #videoContainer { position: relative; width: 100%; max-width: 100%; height: 70vh; background: #000; display: flex; justify-content: center; align-items: center; overflow: hidden; }
+    #remoteVideo { width: 100%; height: 100%; object-fit: cover; background: #000; }
+    #localVideo { position: absolute; top: 10px; right: 10px; width: 160px; height: 120px; object-fit: cover; border: 2px solid white; border-radius: 8px; z-index: 2; }
+    #waitingOverlay { position: absolute; top: 0; left: 0; right: 0; bottom: 0; background: rgba(0, 0, 0, 0.7); color: white; font-size: 22px; display: flex; align-items: center; justify-content: center; z-index: 1; }
+    .controls { text-align: center; margin: 15px; }
+    button { padding: 10px 15px; margin: 5px; border: none; border-radius: 6px; font-size: 16px; cursor: pointer; color: #fff; transition: background 0.3s; }
     #startBtn { background: #2563eb; }
     #hangBtn { background: #ef4444; }
     #muteBtn { background: #f59e0b; }
-    #camBtn  { background: #8b5cf6; }
+    #camBtn { background: #8b5cf6; }
     #nextBtn { background: #10b981; }
     #themeBtn { background: #374151; }
     #fullscreenBtn { background: #4b5563; }
-
-    #status {
-      display: block;
-      margin-top: 10px;
-      color: #bbb;
-    }
-
-    #timer {
-      font-size: 14px;
-      color: #aaa;
-      display: block;
-      margin-top: 5px;
-    }
-
-    body[data-theme="light"] {
-      background: #f5f5f5;
-      color: #111;
-    }
+    #status { display: block; margin-top: 10px; color: #bbb; }
+    #timer { font-size: 14px; color: #aaa; display: block; margin-top: 5px; }
+    body[data-theme="light"] { background: #f5f5f5; color: #111; }
     body[data-theme="light"] #status { color: #333; }
     body[data-theme="light"] #timer { color: #555; }
     body[data-theme="light"] button { color: #fff; }
     body[data-theme="light"] #startBtn { background: #3b82f6; }
     body[data-theme="light"] #hangBtn { background: #dc2626; }
     body[data-theme="light"] #muteBtn { background: #f59e0b; }
-    body[data-theme="light"] #camBtn  { background: #8b5cf6; }
+    body[data-theme="light"] #camBtn { background: #8b5cf6; }
     body[data-theme="light"] #nextBtn { background: #10b981; }
     body[data-theme="light"] #themeBtn { background: #64748b; }
     body[data-theme="light"] #fullscreenBtn { background: #6b7280; }
@@ -117,9 +39,9 @@
   <script src="https://www.gstatic.com/firebasejs/9.22.2/firebase-app-compat.js"></script>
   <script src="https://www.gstatic.com/firebasejs/9.22.2/firebase-database-compat.js"></script>
 </head>
+
 <body data-theme="dark">
   <h2 style="text-align:center">🔥 Random Video Chat - Tamil VM</h2>
-
   <div id="videoContainer">
     <video id="remoteVideo" autoplay playsinline></video>
     <video id="localVideo" autoplay muted playsinline></video>
@@ -141,7 +63,7 @@
   <audio id="connectSound" src="https://www.myinstants.com/media/sounds/iphone-notification.mp3"></audio>
 
   <script>
-    (async function(){
+    (async function () {
       const firebaseConfig = {
         apiKey: "AIzaSyB1VbLbqBxCiG_bfGoQgQyapXwHUQ-Q7BU",
         authDomain: "tamil-chat-2d54e.firebaseapp.com",
@@ -168,26 +90,24 @@
       const connectSound = document.getElementById('connectSound');
       const timerEl = document.getElementById('timer');
 
-      const clientId = 'c_' + Math.random().toString(36).substr(2,8);
+      const clientId = 'c_' + Math.random().toString(36).substr(2, 8);
       let queueKey = null, callId = null, isInitiator = false;
       let pc = null, localStream = null;
       let localCandidatesRef = null, remoteCandidatesRef = null;
-
       const iceConfig = { iceServers: [{ urls: "stun:stun.l.google.com:19302" }] };
-      let timerInterval = null;
-      let startTime = null;
+      let timerInterval = null, startTime = null;
 
       function setStatus(msg) { statusEl.textContent = msg; }
       function showOverlay(show) { waitingOverlay.style.display = show ? 'flex' : 'none'; }
 
-      async function getLocalStream(){
-        if(localStream) return localStream;
-        localStream = await navigator.mediaDevices.getUserMedia({video:true,audio:true});
+      async function getLocalStream() {
+        if (localStream) return localStream;
+        localStream = await navigator.mediaDevices.getUserMedia({ video: true, audio: true });
         localVideo.srcObject = localStream;
         return localStream;
       }
 
-      async function enterQueue(){
+      async function enterQueue() {
         const qRef = db.ref('queue');
         const newRef = qRef.push();
         queueKey = newRef.key;
@@ -199,79 +119,81 @@
         watchPairForUs();
       }
 
-      function watchQueue(){
+      function watchQueue() {
         db.ref('queue').on('child_added', async (snap) => {
-          if(snap.key === queueKey) return;
+          if (snap.key === queueKey) return;
           const otherKey = snap.key;
-          const pairRef = db.ref('pairs/'+otherKey);
-          await pairRef.transaction(current=>{
-            if(current===null) return {a:otherKey,b:queueKey,created:Date.now()};
-            return;
-          }, async (err, committed, snap2)=>{
-            if(committed){
+          const pairRef = db.ref('pairs/' + otherKey);
+          await pairRef.transaction(current => {
+            if (current === null) return { a: otherKey, b: queueKey, created: Date.now() };
+          }, (err, committed, snap2) => {
+            if (committed) {
               const ids = [otherKey, queueKey].sort();
-              callId = "call_"+ids[0]+"_"+ids[1];
+              callId = "call_" + ids[0] + "_" + ids[1];
               isInitiator = true;
-              db.ref('queue/'+otherKey).remove();
-              db.ref('queue/'+queueKey).remove();
+              db.ref('queue/' + otherKey).remove();
+              db.ref('queue/' + queueKey).remove();
               startCall(callId);
             }
           });
         });
       }
 
-      function watchPairForUs(){
-        db.ref('pairs/'+queueKey).on('value', snap=>{
+      function watchPairForUs() {
+        db.ref('pairs/' + queueKey).on('value', snap => {
           const val = snap.val();
-          if(val && !callId){
-            const other = val.a===queueKey?val.b:val.a;
-            const ids=[other,queueKey].sort();
-            callId="call_"+ids[0]+"_"+ids[1];
-            isInitiator=false;
-            db.ref('queue/'+other).remove();
-            db.ref('queue/'+queueKey).remove();
+          if (val && !callId) {
+            const other = val.a === queueKey ? val.b : val.a;
+            const ids = [other, queueKey].sort();
+            callId = "call_" + ids[0] + "_" + ids[1];
+            isInitiator = false;
+            db.ref('queue/' + other).remove();
+            db.ref('queue/' + queueKey).remove();
             startCall(callId);
           }
         });
       }
 
-      async function startCall(id){
+      async function startCall(id) {
         await getLocalStream();
         setStatus('Starting call...');
         pc = new RTCPeerConnection(iceConfig);
-        localStream.getTracks().forEach(t=>pc.addTrack(t,localStream));
-        pc.ontrack = e=>{ remoteVideo.srcObject = e.streams[0]; };
-        pc.onicecandidate = e=>{
-          if(e.candidate && localCandidatesRef) localCandidatesRef.push(e.candidate.toJSON());
+
+        localStream.getTracks().forEach(t => pc.addTrack(t, localStream));
+
+        pc.ontrack = e => remoteVideo.srcObject = e.streams[0];
+        pc.onicecandidate = e => {
+          if (e.candidate && localCandidatesRef)
+            localCandidatesRef.push(e.candidate.toJSON());
         };
 
-        const callRef = db.ref('calls/'+id);
+        const callRef = db.ref('calls/' + id);
         const offerRef = callRef.child('offer');
         const answerRef = callRef.child('answer');
-        localCandidatesRef = callRef.child(isInitiator?'offerCandidates':'answerCandidates');
-        remoteCandidatesRef = callRef.child(isInitiator?'answerCandidates':'offerCandidates');
+        localCandidatesRef = callRef.child(isInitiator ? 'offerCandidates' : 'answerCandidates');
+        remoteCandidatesRef = callRef.child(isInitiator ? 'answerCandidates' : 'offerCandidates');
 
-        remoteCandidatesRef.on('child_added', snap=>{
-          const c=snap.val();
-          if(c) pc.addIceCandidate(new RTCIceCandidate(c));
+        remoteCandidatesRef.on('child_added', snap => {
+          const c = snap.val();
+          if (c) pc.addIceCandidate(new RTCIceCandidate(c));
         });
 
-        if(isInitiator){
+        if (isInitiator) {
           const offer = await pc.createOffer();
           await pc.setLocalDescription(offer);
-          offerRef.set({type:offer.type,sdp:offer.sdp});
-          answerRef.on('value', async snap=>{
-            const data=snap.val();
-            if(data && data.sdp) await pc.setRemoteDescription(new RTCSessionDescription(data));
+          offerRef.set({ type: offer.type, sdp: offer.sdp });
+          answerRef.on('value', async snap => {
+            const data = snap.val();
+            if (data && data.sdp) await pc.setRemoteDescription(new RTCSessionDescription(data));
           });
         } else {
-          offerRef.on('value', async snap=>{
-            const data=snap.val();
-            if(data && data.sdp && !pc.remoteDescription){
+          offerRef.on('value', async snap => {
+            const data = snap.val();
+            if (data && data.sdp && !pc.remoteDescription) {
               await pc.setRemoteDescription(new RTCSessionDescription(data));
               const answer = await pc.createAnswer();
               await pc.setLocalDescription(answer);
-              answerRef.set({type:answer.type,sdp:answer.sdp});
+              answerRef.set({ type: answer.type, sdp: answer.sdp });
             }
           });
         }
@@ -285,28 +207,42 @@
         setStatus('Connected!');
         showOverlay(false);
         startTimer();
-        connectSound.play().catch(()=>{});
+        connectSound.play().catch(() => {});
       }
 
-      async function hangUp(){
-        if(pc) pc.close();
-        if(callId) await db.ref('calls/'+callId).remove();
-        if(queueKey) await db.ref('queue/'+queueKey).remove();
-        callId=null; pc=null;
+      async function hangUp() {
+        if (pc) pc.close();
+        if (callId) await db.ref('calls/' + callId).remove();
+        if (queueKey) await db.ref('queue/' + queueKey).remove();
+
+        if (localStream) {
+          localStream.getTracks().forEach(t => t.stop());
+          localVideo.srcObject = null;
+          localStream = null;
+        }
+
+        if (remoteVideo.srcObject) {
+          remoteVideo.srcObject.getTracks().forEach(t => t.stop?.());
+          remoteVideo.srcObject = null;
+        }
+
+        callId = null;
+        pc = null;
+
         startBtn.disabled = false;
         hangBtn.disabled = true;
         muteBtn.disabled = true;
         camBtn.disabled = true;
         nextBtn.disabled = true;
+
         setStatus('Idle');
         stopTimer();
         showOverlay(true);
       }
 
-      function startTimer(){
+      function startTimer() {
         startTime = Date.now();
-        timerEl.textContent = 'Call Duration: 00:00';
-        timerInterval = setInterval(()=>{
+        timerInterval = setInterval(() => {
           const diff = Date.now() - startTime;
           const mins = String(Math.floor(diff / 60000)).padStart(2, '0');
           const secs = String(Math.floor((diff % 60000) / 1000)).padStart(2, '0');
@@ -314,14 +250,18 @@
         }, 1000);
       }
 
-      function stopTimer(){
+      function stopTimer() {
         clearInterval(timerInterval);
         timerEl.textContent = 'Call Duration: 00:00';
       }
 
+      // Button Events
       startBtn.onclick = () => getLocalStream().then(enterQueue);
       hangBtn.onclick = hangUp;
-      nextBtn.onclick = async () => { await hangUp(); getLocalStream().then(enterQueue); };
+      nextBtn.onclick = async () => {
+        await hangUp();
+        getLocalStream().then(enterQueue);
+      };
 
       muteBtn.onclick = () => {
         const t = localStream.getAudioTracks()[0];
@@ -337,8 +277,10 @@
 
       themeBtn.onclick = () => {
         const current = document.body.getAttribute('data-theme');
-        document.body.setAttribute('data-theme', current === 'dark' ? 'light' : 'dark');
-        themeBtn.textContent = current === 'dark' ? '☀️ Theme' : '🌙 Theme';
+        const next = current === 'dark' ? 'light' : 'dark';
+        document.body.setAttribute('data-theme', next);
+        themeBtn.textContent = next === 'dark' ? '🌙 Theme' : '☀️ Theme';
+        localStorage.setItem('theme', next);
       };
 
       fullscreenBtn.onclick = () => {
@@ -349,6 +291,13 @@
           document.exitFullscreen();
         }
       };
+
+      // Load saved theme
+      const savedTheme = localStorage.getItem('theme');
+      if (savedTheme) {
+        document.body.setAttribute('data-theme', savedTheme);
+        themeBtn.textContent = savedTheme === 'dark' ? '🌙 Theme' : '☀️ Theme';
+      }
     })();
   </script>
 </body>
