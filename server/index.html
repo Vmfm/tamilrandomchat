@@ -1,442 +1,393 @@
-<!DOCTYPE html>
+<!doctype html>
 <html>
 <head>
-  <meta charset="UTF-8" />
-  <title>Random PeerJS Video Chat</title>
+  <meta charset="utf-8" />
+  <title>Random Video Chat - Tamil VM</title>
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
   <style>
     body {
       font-family: sans-serif;
-      text-align: center;
-      margin-top: 20px;
-      background-color: #f4f4f4;
+      background: #111;
+      color: #eee;
+      margin: 0;
+      padding: 0;
+      transition: background 0.3s, color 0.3s;
     }
 
     #videoContainer {
       position: relative;
-      display: inline-block;
-      width: 90%;
-      max-width: 900px;
+      width: 100%;
+      max-width: 100%;
+      height: 70vh;
       background: #000;
-      border-radius: 10px;
+      display: flex;
+      justify-content: center;
+      align-items: center;
       overflow: hidden;
     }
 
     #remoteVideo {
       width: 100%;
-      height: auto;
-      background-color: black;
+      height: 100%;
+      object-fit: cover;
+      background: #000;
+      z-index: 1;
+    }
+
+    #remotePlaceholder {
+      position: absolute;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      object-fit: cover;
+      background: #000;
+      z-index: 0;
     }
 
     #localVideo {
       position: absolute;
-      bottom: 15px;
-      right: 15px;
-      width: 25%;
-      max-width: 200px;
+      top: 10px;
+      right: 10px;
+      width: 160px;
+      height: 120px;
+      object-fit: cover;
       border: 2px solid white;
       border-radius: 8px;
-      box-shadow: 0 0 10px rgba(0, 0, 0, 0.5);
       z-index: 2;
     }
 
-    .fullscreen-btn {
+    #waitingOverlay {
       position: absolute;
-      right: 15px;
-      top: 15px;
-      z-index: 3;
-      font-size: 20px;
-      background: rgba(0, 0, 0, 0.6);
+      top: 0;
+      left: 0;
+      right: 0;
+      bottom: 0;
+      background: rgba(0, 0, 0, 0.7);
       color: white;
-      border: none;
-      border-radius: 50%;
-      padding: 8px 12px;
-      cursor: pointer;
-      transition: background-color 0.3s ease;
+      font-size: 22px;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      gap: 10px;
+      z-index: 3;
     }
 
-    .fullscreen-btn:hover {
-      background: rgba(0, 0, 0, 0.8);
+    .spinner {
+      width: 40px;
+      height: 40px;
+      border: 5px solid #999;
+      border-top: 5px solid #fff;
+      border-radius: 50%;
+      animation: spin 1s linear infinite;
+    }
+
+    @keyframes spin {
+      0% { transform: rotate(0deg); }
+      100% { transform: rotate(360deg); }
+    }
+
+    .controls {
+      text-align: center;
+      margin: 15px;
     }
 
     button {
-      padding: 10px 20px;
-      margin: 10px;
-      font-size: 16px;
-      font-weight: bold;
-      color: white;
+      padding: 10px 15px;
+      margin: 5px;
       border: none;
-      border-radius: 30px;
+      border-radius: 6px;
+      font-size: 16px;
       cursor: pointer;
-      transition: background-color 0.3s ease;
+      color: #fff;
+      transition: background 0.3s;
     }
 
-    .btn-host { background-color: #007bff; } /* Blue */
-    .btn-guest { background-color: #28a745; } /* Green */
-    .btn-next { background-color: #ffc107; color: black; } /* Yellow */
-    .btn-mic { background-color: #dc3545; } /* Red */
-    .btn-cam { background-color: #17a2b8; } /* Teal */
-    .btn-cancel { background-color: #6c757d; } /* Gray */
+    #startBtn { background: #2563eb; }
+    #hangBtn { background: #ef4444; }
+    #muteBtn { background: #f59e0b; }
+    #camBtn  { background: #8b5cf6; }
+    #nextBtn { background: #10b981; }
+    #themeBtn { background: #374151; }
+    #fullscreenBtn { background: #4b5563; }
 
-    button:hover {
-      filter: brightness(1.1);
+    #status {
+      display: block;
+      margin-top: 10px;
+      color: #bbb;
     }
 
-    #my-id, #status {
-      margin: 10px;
-      font-weight: bold;
-    }
-
-    #controls {
-      margin-top: 20px;
-    }
-
-    /* Spinner: bouncing dots */
-    #loadingSpinner {
-      position: absolute;
-      top: 50%;
-      left: 50%;
-      transform: translate(-50%, -50%);
-      z-index: 5;
-      display: none;
-      text-align: center;
-      color: white;
-      font-weight: bold;
+    #timer {
       font-size: 14px;
+      color: #aaa;
+      display: block;
+      margin-top: 5px;
     }
 
-    .dot {
-      display: inline-block;
-      width: 12px;
-      height: 12px;
-      margin: 0 5px;
-      background-color: white;
-      border-radius: 50%;
-      animation-name: bounce;
-      animation-duration: 1.4s;
-      animation-iteration-count: infinite;
-      animation-timing-function: ease-in-out;
+    body[data-theme="light"] {
+      background: #f5f5f5;
+      color: #111;
     }
-
-    .dot:nth-child(1) {
-      animation-delay: -0.32s;
-    }
-    .dot:nth-child(2) {
-      animation-delay: -0.16s;
-    }
-    .dot:nth-child(3) {
-      animation-delay: 0;
-    }
-
-    @keyframes bounce {
-      0%, 80%, 100% {
-        transform: scale(0);
-      }
-      40% {
-        transform: scale(1);
-      }
-    }
+    body[data-theme="light"] #status { color: #333; }
+    body[data-theme="light"] #timer { color: #555; }
+    body[data-theme="light"] button { color: #fff; }
+    body[data-theme="light"] #startBtn { background: #3b82f6; }
+    body[data-theme="light"] #hangBtn { background: #dc2626; }
+    body[data-theme="light"] #muteBtn { background: #f59e0b; }
+    body[data-theme="light"] #camBtn  { background: #8b5cf6; }
+    body[data-theme="light"] #nextBtn { background: #10b981; }
+    body[data-theme="light"] #themeBtn { background: #64748b; }
+    body[data-theme="light"] #fullscreenBtn { background: #6b7280; }
   </style>
-</head>
-<body>
-  <h2>Random Video Chat</h2>
 
-  <!-- Video Container -->
+  <!-- Firebase -->
+  <script src="https://www.gstatic.com/firebasejs/9.22.2/firebase-app-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/9.22.2/firebase-database-compat.js"></script>
+</head>
+<body data-theme="dark">
+  <h2 style="text-align:center">🔥 Random Video Chat - Tamil VM</h2>
+
   <div id="videoContainer">
     <video id="remoteVideo" autoplay playsinline></video>
+    <img id="remotePlaceholder" src="https://i.gifer.com/ZZ5H.gif" alt="Waiting for partner..." />
     <video id="localVideo" autoplay muted playsinline></video>
-    <button class="fullscreen-btn" onclick="toggleFullScreen()">⛶</button>
 
-    <!-- Loading Spinner -->
-    <div id="loadingSpinner" aria-live="polite" aria-label="Waiting for partner">
-      Waiting for partner
-      <span class="dot"></span>
-      <span class="dot"></span>
-      <span class="dot"></span>
+    <div id="waitingOverlay">
+      <div class="spinner"></div>
+      <div>Waiting for partner...</div>
     </div>
   </div>
 
-  <!-- Controls -->
-  <div id="controls">
-    <p>Your ID: <span id="my-id">...</span></p>
-    <p>Status: <span id="status">Waiting...</span></p>
-    <button class="btn-host" onclick="startAsHost()">Start👨‍🦰Male</button>
-    <button class="btn-guest" onclick="startAsGuest()">Start🙎Female</button>
-    <button class="btn-next" onclick="findNextPartner()">Find Next Partner</button>
-    <button class="btn-mic" onclick="toggleMic()" id="micBtn">Mic Off</button>
-    <button class="btn-cam" onclick="toggleCam()" id="camBtn">Cam Off</button>
-    <button class="btn-cancel" onclick="cancelConnection()" id="cancelBtn" style="display:none;">Cancel Connection</button>
+  <div class="controls">
+    <button id="startBtn">Find Partner</button>
+    <button id="nextBtn" disabled>Next</button>
+    <button id="hangBtn" disabled>Hang Up</button>
+    <button id="muteBtn" disabled>Mute</button>
+    <button id="camBtn" disabled>Camera Off</button>
+    <button id="fullscreenBtn">🖵 Fullscreen</button>
+    <button id="themeBtn">🌙 Theme</button>
+    <span id="status">Idle</span>
+    <span id="timer">Call Duration: 00:00</span>
   </div>
 
-  <!-- Sound for connection -->
-  <audio id="connectedSound" src="https://actions.google.com/sounds/v1/cartoon/clang_and_wobble.ogg" preload="auto"></audio>
+  <audio id="connectSound" src="https://www.myinstants.com/media/sounds/iphone-notification.mp3"></audio>
 
-  <!-- PeerJS Script -->
-  <script src="https://cdn.jsdelivr.net/npm/peerjs@1.4.7/dist/peerjs.min.js"></script>
   <script>
-    const localVideo = document.getElementById('localVideo');
-    const remoteVideo = document.getElementById('remoteVideo');
-    const myIdSpan = document.getElementById('my-id');
-    const statusSpan = document.getElementById('status');
-    const micBtn = document.getElementById('micBtn');
-    const camBtn = document.getElementById('camBtn');
-    const loadingSpinner = document.getElementById('loadingSpinner');
-    const cancelBtn = document.getElementById('cancelBtn');
-    const connectedSound = document.getElementById('connectedSound');
+    (async function(){
+      const firebaseConfig = {
+        apiKey: "AIzaSyB1VbLbqBxCiG_bfGoQgQyapXwHUQ-Q7BU",
+        authDomain: "tamil-chat-2d54e.firebaseapp.com",
+        databaseURL: "https://tamil-chat-2d54e-default-rtdb.firebaseio.com",
+        projectId: "tamil-chat-2d54e",
+        storageBucket: "tamil-chat-2d54e.appspot.com",
+        messagingSenderId: "804705969240",
+        appId: "1:804705969240:web:658df281dd8360843c162d"
+      };
+      firebase.initializeApp(firebaseConfig);
+      const db = firebase.database();
 
-    let peer, localStream, currentCall;
-    let lastRole = null;
-    let micEnabled = true;
-    let camEnabled = true;
-    let retryInterval = null;
+      const localVideo = document.getElementById('localVideo');
+      const remoteVideo = document.getElementById('remoteVideo');
+      const remotePlaceholder = document.getElementById('remotePlaceholder');
+      const waitingOverlay = document.getElementById('waitingOverlay');
+      const startBtn = document.getElementById('startBtn');
+      const nextBtn = document.getElementById('nextBtn');
+      const hangBtn = document.getElementById('hangBtn');
+      const muteBtn = document.getElementById('muteBtn');
+      const camBtn = document.getElementById('camBtn');
+      const fullscreenBtn = document.getElementById('fullscreenBtn');
+      const themeBtn = document.getElementById('themeBtn');
+      const statusEl = document.getElementById('status');
+      const connectSound = document.getElementById('connectSound');
+      const timerEl = document.getElementById('timer');
 
-    const randomPool = [
-      'peer-123456', 'peer-234567', 'peer-345678',
-      'peer-456789', 'peer-567890', 'peer-678901',
-      'peer-789012', 'peer-890123', 'peer-901234'
-    ];
+      const clientId = 'c_' + Math.random().toString(36).substr(2,8);
+      let queueKey = null, callId = null, isInitiator = false;
+      let pc = null, localStream = null;
+      let localCandidatesRef = null, remoteCandidatesRef = null;
 
-    function generateRandomId() {
-      return 'peer-' + Math.floor(Math.random() * 1000000).toString().padStart(6, '0');
-    }
+      const iceConfig = { iceServers: [{ urls: "stun:stun.l.google.com:19302" }] };
+      let timerInterval = null;
+      let startTime = null;
 
-    async function getMediaStream(facingMode = 'user') {
-      if (localStream) {
-        localStream.getTracks().forEach(track => track.stop());
+      function setStatus(msg) { statusEl.textContent = msg; }
+      function showOverlay(show) { waitingOverlay.style.display = show ? 'flex' : 'none'; }
+
+      async function getLocalStream(){
+        if(localStream) return localStream;
+        localStream = await navigator.mediaDevices.getUserMedia({video:true,audio:true});
+        localVideo.srcObject = localStream;
+        return localStream;
       }
-      try {
-        const stream = await navigator.mediaDevices.getUserMedia({
-          video: { facingMode },
-          audio: true
-        });
-        localStream = stream;
-        localVideo.srcObject = stream;
-      } catch (err) {
-        console.error('Error accessing media devices:', err);
-        alert('Camera access denied or unavailable.');
+
+      async function enterQueue(){
+        const qRef = db.ref('queue');
+        const newRef = qRef.push();
+        queueKey = newRef.key;
+        await newRef.set({ id: clientId, ts: Date.now() });
+        newRef.onDisconnect().remove();
+        setStatus('Waiting for partner...');
+        showOverlay(true);
+        watchQueue();
+        watchPairForUs();
       }
-    }
 
-    getMediaStream('user');
+      function watchQueue(){
+        db.ref('queue').on('child_added', async (snap) => {
+          if(snap.key === queueKey) return;
+          const otherKey = snap.key;
+          const pairRef = db.ref('pairs/'+otherKey);
+          await pairRef.transaction(current=>{
+            if(current===null) return {a:otherKey,b:queueKey,created:Date.now()};
+            return;
+          }, async (err, committed, snap2)=>{
+            if(committed){
+              const ids = [otherKey, queueKey].sort();
+              callId = "call_"+ids[0]+"_"+ids[1];
+              isInitiator = true;
+              db.ref('queue/'+otherKey).remove();
+              db.ref('queue/'+queueKey).remove();
+              startCall(callId);
+            }
+          });
+        });
+      }
 
-    function toggleMic() {
-      if (!localStream) return;
-      micEnabled = !micEnabled;
-      localStream.getAudioTracks().forEach(track => track.enabled = micEnabled);
-      micBtn.textContent = micEnabled ? 'Mic Off' : 'Mic On';
-    }
+      function watchPairForUs(){
+        db.ref('pairs/'+queueKey).on('value', snap=>{
+          const val = snap.val();
+          if(val && !callId){
+            const other = val.a===queueKey?val.b:val.a;
+            const ids=[other,queueKey].sort();
+            callId="call_"+ids[0]+"_"+ids[1];
+            isInitiator=false;
+            db.ref('queue/'+other).remove();
+            db.ref('queue/'+queueKey).remove();
+            startCall(callId);
+          }
+        });
+      }
 
-    function toggleCam() {
-      if (!localStream) return;
-      camEnabled = !camEnabled;
-      localStream.getVideoTracks().forEach(track => track.enabled = camEnabled);
-      camBtn.textContent = camEnabled ? 'Cam Off' : 'Cam On';
-    }
+      async function startCall(id){
+        await getLocalStream();
+        setStatus('Starting call...');
+        pc = new RTCPeerConnection(iceConfig);
+        localStream.getTracks().forEach(t=>pc.addTrack(t,localStream));
+        pc.ontrack = e => {
+          remoteVideo.srcObject = e.streams[0];
+          remotePlaceholder.style.display = 'none';
+        };
+        pc.onicecandidate = e => {
+          if(e.candidate && localCandidatesRef) localCandidatesRef.push(e.candidate.toJSON());
+        };
 
-    // === HOST with automatic guest finder ===
-    function startAsHost() {
-      cleanup();
-      lastRole = 'host';
-      const myId = randomPool[Math.floor(Math.random() * randomPool.length)];
-      peer = new Peer(myId);
-      myIdSpan.textContent = myId;
+        const callRef = db.ref('calls/'+id);
+        const offerRef = callRef.child('offer');
+        const answerRef = callRef.child('answer');
+        localCandidatesRef = callRef.child(isInitiator?'offerCandidates':'answerCandidates');
+        remoteCandidatesRef = callRef.child(isInitiator?'answerCandidates':'offerCandidates');
 
-      statusSpan.textContent = 'Waiting for partner to connect...';
-      loadingSpinner.style.display = 'block';
-      cancelBtn.style.display = 'inline-block';
-
-      peer.on('call', call => {
-        currentCall = call;
-        call.answer(localStream);
-        statusSpan.textContent = 'Partner connected!';
-        loadingSpinner.style.display = 'none';
-        cancelBtn.style.display = 'none';
-        playConnectedSound();
-
-        call.on('stream', remoteStream => {
-          remoteVideo.srcObject = remoteStream;
+        remoteCandidatesRef.on('child_added', snap => {
+          const c=snap.val();
+          if(c) pc.addIceCandidate(new RTCIceCandidate(c));
         });
 
-        call.on('close', () => {
-          statusSpan.textContent = 'Partner disconnected.';
-          cleanup();
-        });
-
-        call.on('error', () => {
-          statusSpan.textContent = 'Call error occurred.';
-          cleanup();
-        });
-      });
-
-      // Automatically try to call guests periodically to find partner
-      retryInterval = setInterval(() => {
-        if (currentCall || peer.destroyed) return;
-        tryCallGuest();
-      }, 4000);
-
-      // Try immediately too
-      tryCallGuest();
-    }
-
-    function tryCallGuest() {
-      if (!peer || peer.destroyed) return;
-      if (currentCall) return;
-
-      const guestId = randomPool[Math.floor(Math.random() * randomPool.length)];
-      if (guestId === peer.id) return; // avoid calling self
-
-      statusSpan.textContent = 'Trying to connect to guest ' + guestId + '...';
-
-      const call = peer.call(guestId, localStream);
-      if (!call) return;
-
-      call.on('stream', remoteStream => {
-        currentCall = call;
-        remoteVideo.srcObject = remoteStream;
-        statusSpan.textContent = 'Connected to guest!';
-        loadingSpinner.style.display = 'none';
-        cancelBtn.style.display = 'none';
-        playConnectedSound();
-
-        clearInterval(retryInterval);
-        retryInterval = null;
-      });
-
-      call.on('close', () => {
-        if (currentCall === call) {
-          currentCall = null;
-          statusSpan.textContent = 'Guest disconnected, retrying...';
-          loadingSpinner.style.display = 'block';
-          cancelBtn.style.display = 'inline-block';
+        if(isInitiator){
+          const offer = await pc.createOffer();
+          await pc.setLocalDescription(offer);
+          offerRef.set({type:offer.type,sdp:offer.sdp});
+          answerRef.on('value', async snap=>{
+            const data=snap.val();
+            if(data && data.sdp) await pc.setRemoteDescription(new RTCSessionDescription(data));
+          });
+        } else {
+          offerRef.on('value', async snap=>{
+            const data=snap.val();
+            if(data && data.sdp && !pc.remoteDescription){
+              await pc.setRemoteDescription(new RTCSessionDescription(data));
+              const answer = await pc.createAnswer();
+              await pc.setLocalDescription(answer);
+              answerRef.set({type:answer.type,sdp:answer.sdp});
+            }
+          });
         }
-      });
 
-      call.on('error', () => {
-        statusSpan.textContent = 'Connection failed. Retrying...';
-      });
-    }
+        startBtn.disabled = true;
+        hangBtn.disabled = false;
+        muteBtn.disabled = false;
+        camBtn.disabled = false;
+        nextBtn.disabled = false;
 
-    // === GUEST ===
-    function startAsGuest() {
-      cleanup();
-      lastRole = 'guest';
-      const myId = generateRandomId();
-      peer = new Peer(myId);
-      myIdSpan.textContent = myId;
+        setStatus('Connected!');
+        showOverlay(false);
+        startTimer();
+        connectSound.play().catch(()=>{});
+      }
 
-      peer.on('open', () => {
-        tryGuestConnection();
-        retryInterval = setInterval(tryGuestConnection, 5000);
-      });
+      async function hangUp(){
+        if(pc) pc.close();
+        if(callId) await db.ref('calls/'+callId).remove();
+        if(queueKey) await db.ref('queue/'+queueKey).remove();
+        callId=null; pc=null;
+        startBtn.disabled = false;
+        hangBtn.disabled = true;
+        muteBtn.disabled = true;
+        camBtn.disabled = true;
+        nextBtn.disabled = true;
+        setStatus('Idle');
+        stopTimer();
+        showOverlay(true);
+        remotePlaceholder.style.display = 'block';
+      }
 
-      loadingSpinner.style.display = 'block';
-      cancelBtn.style.display = 'inline-block';
-      statusSpan.textContent = 'Looking for host to connect...';
+      function startTimer(){
+        startTime = Date.now();
+        timerEl.textContent = 'Call Duration: 00:00';
+        timerInterval = setInterval(()=>{
+          const diff = Date.now() - startTime;
+          const mins = String(Math.floor(diff / 60000)).padStart(2, '0');
+          const secs = String(Math.floor((diff % 60000) / 1000)).padStart(2, '0');
+          timerEl.textContent = `Call Duration: ${mins}:${secs}`;
+        }, 1000);
+      }
 
-      peer.on('call', call => {
-        // guest should not receive calls normally, but just in case
-        call.answer(localStream);
-        call.on('stream', remoteStream => {
-          remoteVideo.srcObject = remoteStream;
-          statusSpan.textContent = 'Partner connected!';
-          loadingSpinner.style.display = 'none';
-          cancelBtn.style.display = 'none';
-          playConnectedSound();
-        });
-      });
-    }
+      function stopTimer(){
+        clearInterval(timerInterval);
+        timerEl.textContent = 'Call Duration: 00:00';
+      }
 
-    function tryGuestConnection() {
-      if (!peer || peer.destroyed) return;
-      if (currentCall) return;
+      startBtn.onclick = () => getLocalStream().then(enterQueue);
+      hangBtn.onclick = hangUp;
+      nextBtn.onclick = async () => { await hangUp(); getLocalStream().then(enterQueue); };
 
-      const hostId = randomPool[Math.floor(Math.random() * randomPool.length)];
-      if (hostId === peer.id) return;
+      muteBtn.onclick = () => {
+        const t = localStream.getAudioTracks()[0];
+        t.enabled = !t.enabled;
+        muteBtn.textContent = t.enabled ? 'Mute' : 'Unmute';
+      };
 
-      statusSpan.textContent = 'Trying to connect to host ' + hostId + '...';
+      camBtn.onclick = () => {
+        const t = localStream.getVideoTracks()[0];
+        t.enabled = !t.enabled;
+        camBtn.textContent = t.enabled ? 'Camera Off' : 'Camera On';
+      };
 
-      const call = peer.call(hostId, localStream);
-      if (!call) return;
+      themeBtn.onclick = () => {
+        const current = document.body.getAttribute('data-theme');
+        document.body.setAttribute('data-theme', current === 'dark' ? 'light' : 'dark');
+        themeBtn.textContent = current === 'dark' ? '☀️ Theme' : '🌙 Theme';
+      };
 
-      call.on('stream', remoteStream => {
-        currentCall = call;
-        remoteVideo.srcObject = remoteStream;
-        statusSpan.textContent = 'Connected to host!';
-        loadingSpinner.style.display = 'none';
-        cancelBtn.style.display = 'none';
-        playConnectedSound();
-
-        clearInterval(retryInterval);
-        retryInterval = null;
-      });
-
-      call.on('close', () => {
-        if (currentCall === call) {
-          currentCall = null;
-          statusSpan.textContent = 'Host disconnected, retrying...';
-          loadingSpinner.style.display = 'block';
-          cancelBtn.style.display = 'inline-block';
+      fullscreenBtn.onclick = () => {
+        const elem = document.documentElement;
+        if (!document.fullscreenElement) {
+          elem.requestFullscreen().catch(err => alert("Error: " + err.message));
+        } else {
+          document.exitFullscreen();
         }
-      });
-
-      call.on('error', () => {
-        statusSpan.textContent = 'Connection failed. Retrying...';
-      });
-    }
-
-    // === Cancel connection ===
-    function cancelConnection() {
-      statusSpan.textContent = 'Connection canceled.';
-      loadingSpinner.style.display = 'none';
-      cancelBtn.style.display = 'none';
-
-      if (retryInterval) {
-        clearInterval(retryInterval);
-        retryInterval = null;
-      }
-
-      if (currentCall) {
-        currentCall.close();
-        currentCall = null;
-      }
-
-      if (peer) {
-        peer.destroy();
-        peer = null;
-      }
-
-      remoteVideo.srcObject = null;
-    }
-
-    function cleanup() {
-      cancelConnection();
-      statusSpan.textContent = 'Ready.';
-    }
-
-    function findNextPartner() {
-      if (lastRole === 'host') {
-        startAsHost();
-      } else if (lastRole === 'guest') {
-        startAsGuest();
-      } else {
-        statusSpan.textContent = 'Please start as Girl or Female first.';
-      }
-    }
-
-    function toggleFullScreen() {
-      const videoContainer = document.getElementById("videoContainer");
-      if (!document.fullscreenElement) {
-        videoContainer.requestFullscreen().catch(err => {
-          alert(`Error enabling fullscreen: ${err.message}`);
-        });
-      } else {
-        document.exitFullscreen();
-      }
-    }
-
-    function playConnectedSound() {
-      connectedSound.currentTime = 0;
-      connectedSound.play().catch(() => {});
-    }
+      };
+    })();
   </script>
 </body>
 </html>
