@@ -140,7 +140,6 @@
     <video id="remoteVideo" autoplay playsinline></video>
     <video id="localVideo" autoplay muted playsinline></video>
 
-    <!-- 🔄 Spinner-based waiting overlay -->
     <div id="waitingOverlay">
       <div class="spinner"></div>
       <div id="waitingText">Waiting for partner...</div>
@@ -229,24 +228,23 @@
           const data = snap.val();
           if(!data) return;
 
-          // 🧹 Auto-remove stale entries (20s old)
+          // Ignore stale entries >20s
           if(Date.now() - data.ts > 20000){
             db.ref('queue/'+snap.key).remove();
             return;
           }
 
-          if(snap.key === queueKey) return;
           const otherKey = snap.key;
-          if(otherKey === queueKey) return; // 🚫 Prevent self connect
+          if(otherKey === queueKey) return; // prevent self
 
           const pairRef = db.ref('pairs/'+otherKey);
           await pairRef.transaction(current=>{
-            if(current===null) return {a:otherKey,b:queueKey,created:Date.now()};
+            if(current===null && otherKey !== queueKey) return {a:otherKey,b:queueKey,created:Date.now()};
             return;
           }, async (err, committed, snap2)=>{
             if(committed){
               const ids = [otherKey, queueKey].sort();
-              if(ids[0] === ids[1]) return; // 🚫 Extra safety
+              if(ids[0] === ids[1]) return; // extra safety
               callId = "call_"+ids[0]+"_"+ids[1];
               isInitiator = true;
               db.ref('queue/'+otherKey).remove();
@@ -262,9 +260,9 @@
           const val = snap.val();
           if(val && !callId){
             const other = val.a===queueKey?val.b:val.a;
-            if(other === queueKey) return; // 🚫 Skip self
+            if(!other || other === queueKey) return; // ignore self
             const ids=[other,queueKey].sort();
-            if(ids[0] === ids[1]) return; // 🚫 Extra safety
+            if(ids[0] === ids[1]) return; // extra self-check
             callId="call_"+ids[0]+"_"+ids[1];
             isInitiator=false;
             db.ref('queue/'+other).remove();
