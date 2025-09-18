@@ -132,7 +132,6 @@
   <!-- Firebase -->
   <script src="https://www.gstatic.com/firebasejs/9.22.2/firebase-app-compat.js"></script>
   <script src="https://www.gstatic.com/firebasejs/9.22.2/firebase-database-compat.js"></script>
-  <script src="https://www.gstatic.com/firebasejs/9.22.2/firebase-auth-compat.js"></script>
 </head>
 <body data-theme="dark">
   <h2 style="text-align:center">🔥 Random Video Chat - Tamil VM</h2>
@@ -176,9 +175,6 @@
       firebase.initializeApp(firebaseConfig);
       const db = firebase.database();
 
-      // 🔑 Sign in anonymously
-      await firebase.auth().signInAnonymously();
-
       const localVideo = document.getElementById('localVideo');
       const remoteVideo = document.getElementById('remoteVideo');
       const waitingOverlay = document.getElementById('waitingOverlay');
@@ -193,7 +189,7 @@
       const connectSound = document.getElementById('connectSound');
       const timerEl = document.getElementById('timer');
 
-      const clientId = firebase.auth().currentUser.uid;
+      const clientId = 'c_' + Math.random().toString(36).substr(2,8);
       let queueKey = null, callId = null, isInitiator = false;
       let pc = null, localStream = null;
       let localCandidatesRef = null, remoteCandidatesRef = null;
@@ -213,10 +209,11 @@
       }
 
       async function enterQueue(){
-        const qRef = db.ref('queue/' + clientId);
-        queueKey = clientId;
-        await qRef.set({ id: clientId, ts: Date.now() });
-        qRef.onDisconnect().remove();
+        const qRef = db.ref('queue');
+        const newRef = qRef.push();
+        queueKey = newRef.key;
+        await newRef.set({ id: clientId, ts: Date.now() });
+        newRef.onDisconnect().remove();
         setStatus('Waiting for partner...');
         showOverlay(true);
         watchQueue();
@@ -225,18 +222,14 @@
 
       function watchQueue(){
         db.ref('queue').on('child_added', async (snap) => {
+          if(snap.key === queueKey) return;
           const otherKey = snap.key;
-          if(!otherKey || otherKey === queueKey) return; // 🔒 Prevent self-pair
-
           const pairRef = db.ref('pairs/'+otherKey);
           await pairRef.transaction(current=>{
-            if(current===null) {
-              return {a:otherKey,b:queueKey,created:Date.now()};
-            }
+            if(current===null) return {a:otherKey,b:queueKey,created:Date.now()};
             return;
-          }, async (err, committed)=>{
+          }, async (err, committed, snap2)=>{
             if(committed){
-              if(otherKey === queueKey) return; // 🔒 Double check self-pair
               const ids = [otherKey, queueKey].sort();
               callId = "call_"+ids[0]+"_"+ids[1];
               isInitiator = true;
@@ -253,7 +246,6 @@
           const val = snap.val();
           if(val && !callId){
             const other = val.a===queueKey?val.b:val.a;
-            if(!other || other === queueKey) return; // 🔒 Prevent self-connection
             const ids=[other,queueKey].sort();
             callId="call_"+ids[0]+"_"+ids[1];
             isInitiator=false;
