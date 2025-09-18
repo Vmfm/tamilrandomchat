@@ -13,6 +13,7 @@
       padding: 0;
       transition: background 0.3s, color 0.3s;
     }
+
     #videoContainer {
       position: relative;
       width: 100%;
@@ -24,12 +25,14 @@
       align-items: center;
       overflow: hidden;
     }
+
     #remoteVideo {
       width: 100%;
       height: 100%;
       object-fit: cover;
       background: #000;
     }
+
     #localVideo {
       position: absolute;
       top: 10px;
@@ -41,6 +44,7 @@
       border-radius: 8px;
       z-index: 2;
     }
+
     #waitingOverlay {
       position: absolute;
       top: 0;
@@ -57,6 +61,7 @@
       gap: 10px;
       z-index: 1;
     }
+
     .spinner {
       width: 40px;
       height: 40px;
@@ -65,11 +70,17 @@
       border-radius: 50%;
       animation: spin 1s linear infinite;
     }
+
     @keyframes spin {
       0% { transform: rotate(0deg); }
       100% { transform: rotate(360deg); }
     }
-    .controls { text-align: center; margin: 15px; }
+
+    .controls {
+      text-align: center;
+      margin: 15px;
+    }
+
     button {
       padding: 10px 15px;
       margin: 5px;
@@ -80,6 +91,7 @@
       color: #fff;
       transition: background 0.3s;
     }
+
     #startBtn { background: #2563eb; }
     #hangBtn { background: #ef4444; }
     #muteBtn { background: #f59e0b; }
@@ -87,9 +99,24 @@
     #nextBtn { background: #10b981; }
     #themeBtn { background: #374151; }
     #fullscreenBtn { background: #4b5563; }
-    #status { display: block; margin-top: 10px; color: #bbb; }
-    #timer { font-size: 14px; color: #aaa; display: block; margin-top: 5px; }
-    body[data-theme="light"] { background: #f5f5f5; color: #111; }
+
+    #status {
+      display: block;
+      margin-top: 10px;
+      color: #bbb;
+    }
+
+    #timer {
+      font-size: 14px;
+      color: #aaa;
+      display: block;
+      margin-top: 5px;
+    }
+
+    body[data-theme="light"] {
+      background: #f5f5f5;
+      color: #111;
+    }
     body[data-theme="light"] #status { color: #333; }
     body[data-theme="light"] #timer { color: #555; }
     body[data-theme="light"] button { color: #fff; }
@@ -105,17 +132,18 @@
   <!-- Firebase -->
   <script src="https://www.gstatic.com/firebasejs/9.22.2/firebase-app-compat.js"></script>
   <script src="https://www.gstatic.com/firebasejs/9.22.2/firebase-database-compat.js"></script>
-  <script src="https://www.gstatic.com/firebasejs/9.22.2/firebase-auth-compat.js"></script>
 </head>
 <body data-theme="dark">
-  <h2 style="text-align:center">🔥 Random Video Chat - Tamil VM</h2>
+  <h2 style="text-align:center">🔥 Random Video - Tamil VM</h2>
 
   <div id="videoContainer">
     <video id="remoteVideo" autoplay playsinline></video>
     <video id="localVideo" autoplay muted playsinline></video>
+
+    <!-- 🔄 Spinner-based waiting overlay -->
     <div id="waitingOverlay">
       <div class="spinner"></div>
-      <div>Waiting for partner...</div>
+      <div id="waitingText">Waiting for partner...</div>
     </div>
   </div>
 
@@ -147,14 +175,10 @@
       firebase.initializeApp(firebaseConfig);
       const db = firebase.database();
 
-      // ✅ Sign in as anonymous guest before anything else
-      await firebase.auth().signInAnonymously().catch((error) => {
-        console.error("Anonymous login failed:", error);
-      });
-
       const localVideo = document.getElementById('localVideo');
       const remoteVideo = document.getElementById('remoteVideo');
       const waitingOverlay = document.getElementById('waitingOverlay');
+      const waitingText = document.getElementById('waitingText');
       const startBtn = document.getElementById('startBtn');
       const nextBtn = document.getElementById('nextBtn');
       const hangBtn = document.getElementById('hangBtn');
@@ -174,6 +198,7 @@
       const iceConfig = { iceServers: [{ urls: "stun:stun.l.google.com:19302" }] };
       let timerInterval = null;
       let startTime = null;
+      let waitingInterval = null;
 
       function setStatus(msg) { statusEl.textContent = msg; }
       function showOverlay(show) { waitingOverlay.style.display = show ? 'flex' : 'none'; }
@@ -186,33 +211,42 @@
       }
 
       async function enterQueue(){
-        const uid = firebase.auth().currentUser.uid; // use auth.uid
-        const qRef = db.ref('queue/' + uid);
-        queueKey = uid;
-        await qRef.set({ id: uid, ts: Date.now() });
-        qRef.onDisconnect().remove();
+        const qRef = db.ref('queue');
+        const newRef = qRef.push();
+        queueKey = newRef.key;
+        await newRef.set({ id: clientId, ts: Date.now() });
+        newRef.onDisconnect().remove();
         setStatus('Waiting for partner...');
         showOverlay(true);
+        waitingText.textContent = "Waiting for partner...";
+        startWaitingText();
         watchQueue();
         watchPairForUs();
       }
 
       function watchQueue(){
         db.ref('queue').on('child_added', async (snap) => {
+          const data = snap.val();
+          if(!data) return;
+
+          // 🧹 Auto-remove stale entries (20s old)
+          if(Date.now() - data.ts > 20000){
+            db.ref('queue/'+snap.key).remove();
+            return;
+          }
+
+          if(snap.key === queueKey) return;
           const otherKey = snap.key;
-          const otherVal = snap.val();
-          if(!otherVal || otherVal.id === firebase.auth().currentUser.uid) return;
-          if(callId) return;
+          if(otherKey === queueKey) return; // 🚫 Prevent self connect
 
           const pairRef = db.ref('pairs/'+otherKey);
           await pairRef.transaction(current=>{
-            if(current===null){
-              return {a:otherKey,b:queueKey,created:Date.now()};
-            }
+            if(current===null) return {a:otherKey,b:queueKey,created:Date.now()};
             return;
           }, async (err, committed, snap2)=>{
             if(committed){
               const ids = [otherKey, queueKey].sort();
+              if(ids[0] === ids[1]) return; // 🚫 Extra safety
               callId = "call_"+ids[0]+"_"+ids[1];
               isInitiator = true;
               db.ref('queue/'+otherKey).remove();
@@ -228,7 +262,9 @@
           const val = snap.val();
           if(val && !callId){
             const other = val.a===queueKey?val.b:val.a;
+            if(other === queueKey) return; // 🚫 Skip self
             const ids=[other,queueKey].sort();
+            if(ids[0] === ids[1]) return; // 🚫 Extra safety
             callId="call_"+ids[0]+"_"+ids[1];
             isInitiator=false;
             db.ref('queue/'+other).remove();
@@ -241,6 +277,7 @@
       async function startCall(id){
         await getLocalStream();
         setStatus('Starting call...');
+        stopWaitingText();
         pc = new RTCPeerConnection(iceConfig);
         localStream.getTracks().forEach(t=>pc.addTrack(t,localStream));
         pc.ontrack = e=>{ remoteVideo.srcObject = e.streams[0]; };
@@ -304,6 +341,8 @@
         setStatus('Idle');
         stopTimer();
         showOverlay(true);
+        waitingText.textContent = "Waiting for partner...";
+        startWaitingText();
       }
 
       function startTimer(){
@@ -322,6 +361,21 @@
         timerEl.textContent = 'Call Duration: 00:00';
       }
 
+      function startWaitingText(){
+        let count = 0;
+        stopWaitingText();
+        waitingInterval = setInterval(()=>{
+          count++;
+          if(count % 10 === 0){ // every 10 seconds
+            waitingText.textContent = "Still waiting for partner...";
+          }
+        }, 1000);
+      }
+
+      function stopWaitingText(){
+        clearInterval(waitingInterval);
+      }
+
       startBtn.onclick = () => getLocalStream().then(enterQueue);
       hangBtn.onclick = hangUp;
       nextBtn.onclick = async () => { await hangUp(); getLocalStream().then(enterQueue); };
@@ -331,16 +385,19 @@
         t.enabled = !t.enabled;
         muteBtn.textContent = t.enabled ? 'Mute' : 'Unmute';
       };
+
       camBtn.onclick = () => {
         const t = localStream.getVideoTracks()[0];
         t.enabled = !t.enabled;
         camBtn.textContent = t.enabled ? 'Camera Off' : 'Camera On';
       };
+
       themeBtn.onclick = () => {
         const current = document.body.getAttribute('data-theme');
         document.body.setAttribute('data-theme', current === 'dark' ? 'light' : 'dark');
         themeBtn.textContent = current === 'dark' ? '☀️ Theme' : '🌙 Theme';
       };
+
       fullscreenBtn.onclick = () => {
         const elem = document.documentElement;
         if (!document.fullscreenElement) {
@@ -353,3 +410,4 @@
   </script>
 </body>
 </html>
+}
