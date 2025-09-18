@@ -45,9 +45,12 @@
       z-index: 2;
     }
 
-    #waitingOverlay, #preStartOverlay {
+    #waitingOverlay {
       position: absolute;
-      top: 0; left: 0; right: 0; bottom: 0;
+      top: 0;
+      left: 0;
+      right: 0;
+      bottom: 0;
       background: rgba(0, 0, 0, 0.7);
       color: white;
       font-size: 22px;
@@ -137,11 +140,8 @@
     <video id="remoteVideo" autoplay playsinline></video>
     <video id="localVideo" autoplay muted playsinline></video>
 
-    <!-- 👇 Before starting -->
-    <div id="preStartOverlay">Press "Find Partner" to start</div>
-
-    <!-- 🔄 Waiting spinner -->
-    <div id="waitingOverlay" style="display:none;">
+    <!-- 🔄 Spinner-based waiting overlay -->
+    <div id="waitingOverlay">
       <div class="spinner"></div>
       <div>Waiting for partner...</div>
     </div>
@@ -178,7 +178,6 @@
       const localVideo = document.getElementById('localVideo');
       const remoteVideo = document.getElementById('remoteVideo');
       const waitingOverlay = document.getElementById('waitingOverlay');
-      const preStartOverlay = document.getElementById('preStartOverlay');
       const startBtn = document.getElementById('startBtn');
       const nextBtn = document.getElementById('nextBtn');
       const hangBtn = document.getElementById('hangBtn');
@@ -201,7 +200,6 @@
 
       function setStatus(msg) { statusEl.textContent = msg; }
       function showOverlay(show) { waitingOverlay.style.display = show ? 'flex' : 'none'; }
-      function showPreStart(show){ preStartOverlay.style.display = show ? 'flex' : 'none'; }
 
       async function getLocalStream(){
         if(localStream) return localStream;
@@ -218,29 +216,23 @@
         newRef.onDisconnect().remove();
         setStatus('Waiting for partner...');
         showOverlay(true);
-        showPreStart(false);
         watchQueue();
         watchPairForUs();
       }
 
       function watchQueue(){
         db.ref('queue').on('child_added', async (snap) => {
-          if(!snap.val()) return;
-          if(snap.key === queueKey) return; // ✅ skip self
+          if(snap.key === queueKey) return;
           const otherKey = snap.key;
-          if(!otherKey || otherKey === queueKey) return;
           const pairRef = db.ref('pairs/'+otherKey);
           await pairRef.transaction(current=>{
-            if(current===null && otherKey!==queueKey){
-              return {a:otherKey,b:queueKey,created:Date.now()};
-            }
+            if(current===null) return {a:otherKey,b:queueKey,created:Date.now()};
             return;
-          }, async (err, committed)=>{
+          }, async (err, committed, snap2)=>{
             if(committed){
-              const ids=[otherKey,queueKey].sort();
-              if(ids[0]===ids[1]) return; // ✅ double self-check
-              callId="call_"+ids[0]+"_"+ids[1];
-              isInitiator=true;
+              const ids = [otherKey, queueKey].sort();
+              callId = "call_"+ids[0]+"_"+ids[1];
+              isInitiator = true;
               db.ref('queue/'+otherKey).remove();
               db.ref('queue/'+queueKey).remove();
               startCall(callId);
@@ -251,12 +243,10 @@
 
       function watchPairForUs(){
         db.ref('pairs/'+queueKey).on('value', snap=>{
-          const val=snap.val();
+          const val = snap.val();
           if(val && !callId){
-            const other=(val.a===queueKey)?val.b:val.a;
-            if(!other || other===queueKey) return; // ✅ skip self
+            const other = val.a===queueKey?val.b:val.a;
             const ids=[other,queueKey].sort();
-            if(ids[0]===ids[1]) return;
             callId="call_"+ids[0]+"_"+ids[1];
             isInitiator=false;
             db.ref('queue/'+other).remove();
@@ -271,8 +261,10 @@
         setStatus('Starting call...');
         pc = new RTCPeerConnection(iceConfig);
         localStream.getTracks().forEach(t=>pc.addTrack(t,localStream));
-        pc.ontrack = e=>{ if(!remoteVideo.srcObject){ remoteVideo.srcObject = e.streams[0]; } };
-        pc.onicecandidate = e=>{ if(e.candidate && localCandidatesRef) localCandidatesRef.push(e.candidate.toJSON()); };
+        pc.ontrack = e=>{ remoteVideo.srcObject = e.streams[0]; };
+        pc.onicecandidate = e=>{
+          if(e.candidate && localCandidatesRef) localCandidatesRef.push(e.candidate.toJSON());
+        };
 
         const callRef = db.ref('calls/'+id);
         const offerRef = callRef.child('offer');
@@ -281,7 +273,8 @@
         remoteCandidatesRef = callRef.child(isInitiator?'answerCandidates':'offerCandidates');
 
         remoteCandidatesRef.on('child_added', snap=>{
-          const c=snap.val(); if(c) pc.addIceCandidate(new RTCIceCandidate(c));
+          const c=snap.val();
+          if(c) pc.addIceCandidate(new RTCIceCandidate(c));
         });
 
         if(isInitiator){
@@ -328,8 +321,7 @@
         nextBtn.disabled = true;
         setStatus('Idle');
         stopTimer();
-        showOverlay(false);
-        showPreStart(true);
+        showOverlay(true);
       }
 
       function startTimer(){
@@ -337,8 +329,8 @@
         timerEl.textContent = 'Call Duration: 00:00';
         timerInterval = setInterval(()=>{
           const diff = Date.now() - startTime;
-          const mins = String(Math.floor(diff / 60000)).padStart(2,'0');
-          const secs = String(Math.floor((diff % 60000) / 1000)).padStart(2,'0');
+          const mins = String(Math.floor(diff / 60000)).padStart(2, '0');
+          const secs = String(Math.floor((diff % 60000) / 1000)).padStart(2, '0');
           timerEl.textContent = `Call Duration: ${mins}:${secs}`;
         }, 1000);
       }
@@ -372,8 +364,11 @@
 
       fullscreenBtn.onclick = () => {
         const elem = document.documentElement;
-        if (!document.fullscreenElement) elem.requestFullscreen();
-        else document.exitFullscreen();
+        if (!document.fullscreenElement) {
+          elem.requestFullscreen().catch(err => alert("Error: " + err.message));
+        } else {
+          document.exitFullscreen();
+        }
       };
     })();
   </script>
