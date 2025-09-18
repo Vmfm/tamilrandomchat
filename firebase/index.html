@@ -228,23 +228,24 @@
           const data = snap.val();
           if(!data) return;
 
-          // Ignore stale entries >20s
+          // Ignore stale entries
           if(Date.now() - data.ts > 20000){
             db.ref('queue/'+snap.key).remove();
             return;
           }
 
           const otherKey = snap.key;
-          if(otherKey === queueKey) return; // prevent self
+          const otherClientId = data.id;
+          if(otherKey === queueKey || otherClientId === clientId) return; // self check
 
           const pairRef = db.ref('pairs/'+otherKey);
           await pairRef.transaction(current=>{
-            if(current===null && otherKey !== queueKey) return {a:otherKey,b:queueKey,created:Date.now()};
+            if(current===null && otherClientId !== clientId) return {a:otherKey,b:queueKey,created:Date.now()};
             return;
           }, async (err, committed, snap2)=>{
             if(committed){
               const ids = [otherKey, queueKey].sort();
-              if(ids[0] === ids[1]) return; // extra safety
+              if(ids[0] === ids[1]) return;
               callId = "call_"+ids[0]+"_"+ids[1];
               isInitiator = true;
               db.ref('queue/'+otherKey).remove();
@@ -260,14 +261,18 @@
           const val = snap.val();
           if(val && !callId){
             const other = val.a===queueKey?val.b:val.a;
-            if(!other || other === queueKey) return; // ignore self
-            const ids=[other,queueKey].sort();
-            if(ids[0] === ids[1]) return; // extra self-check
-            callId="call_"+ids[0]+"_"+ids[1];
-            isInitiator=false;
-            db.ref('queue/'+other).remove();
-            db.ref('queue/'+queueKey).remove();
-            startCall(callId);
+            if(!other) return;
+            db.ref('queue/'+other).once('value').then(snap2=>{
+              const data = snap2.val();
+              if(!data || data.id === clientId) return; // ignore self
+              const ids=[other,queueKey].sort();
+              if(ids[0] === ids[1]) return;
+              callId="call_"+ids[0]+"_"+ids[1];
+              isInitiator=false;
+              db.ref('queue/'+other).remove();
+              db.ref('queue/'+queueKey).remove();
+              startCall(callId);
+            });
           }
         });
       }
@@ -364,7 +369,7 @@
         stopWaitingText();
         waitingInterval = setInterval(()=>{
           count++;
-          if(count % 10 === 0){ // every 10 seconds
+          if(count % 10 === 0){ 
             waitingText.textContent = "Still waiting for partner...";
           }
         }, 1000);
