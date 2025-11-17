@@ -2,25 +2,57 @@
 <html>
 <head>
   <meta charset="utf-8" />
-  <title>Random Video Chat (Secure)</title>
+  <title>Random Video Chat - Tamil VM</title>
   <meta name="viewport" content="width=device-width,initial-scale=1" />
-  <style> /* styles kept minimal */ body{background:#111;color:#fff;font-family:sans-serif} #videoContainer{height:60vh;background:#000}</style>
+  <style>
+    body{font-family:sans-serif;background:#111;color:#eee;margin:0;padding:0}
+    #videoContainer{position:relative;width:100%;height:70vh;background:#000;display:flex;justify-content:center;align-items:center}
+    #remoteVideo,#localVideo{object-fit:cover}
+    #remoteVideo{width:100%;height:100%}
+    #localVideo{position:absolute;top:10px;right:10px;width:160px;height:120px;border:2px solid #fff;border-radius:8px;z-index:2}
+    #waitingOverlay{position:absolute;inset:0;background:rgba(0,0,0,0.7);color:#fff;font-size:22px;display:flex;flex-direction:column;justify-content:center;align-items:center;gap:10px;z-index:5}
+    .spinner{width:40px;height:40px;border:5px solid #777;border-top:5px solid #fff;border-radius:50%;animation:spin 1s linear infinite}
+    @keyframes spin{0%{transform:rotate(0)}100%{transform:rotate(360deg)}}
+    .controls{text-align:center;margin:15px}
+    button{padding:10px 15px;margin:4px;border:none;border-radius:6px;font-size:16px;color:#fff;cursor:pointer}
+    #startBtn{background:#2563eb}
+    #nextBtn{background:#10b981}
+    #hangBtn{background:#ef4444}
+    #muteBtn{background:#f59e0b}
+    #camBtn{background:#8b5cf6}
+  </style>
+
+  <!-- Firebase -->
+  <script src="https://www.gstatic.com/firebasejs/9.22.2/firebase-app-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/9.22.2/firebase-auth-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/9.22.2/firebase-database-compat.js"></script>
 </head>
+
 <body>
-  <h2>Random Video Chat</h2>
+  <h2 style="text-align:center">🔥 Random Video - Tamil VM</h2>
+
   <div id="videoContainer">
-    <video id="remoteVideo" autoplay playsinline style="width:100%;height:100%;object-fit:cover"></video>
-    <video id="localVideo" autoplay muted playsinline style="position:absolute;right:12px;top:12px;width:160px"></video>
+    <video id="remoteVideo" autoplay playsinline></video>
+    <video id="localVideo" autoplay muted playsinline></video>
+
+    <div id="waitingOverlay">
+      <div class="spinner"></div>
+      <div>Waiting for partner...</div>
+    </div>
   </div>
-  <button id="startBtn">Find Partner</button>
-  <button id="hangBtn" disabled>Hang Up</button>
 
-  <!-- Firebase 8 compat -->
-  <script src="https://www.gstatic.com/firebasejs/8.10.0/firebase-app.js"></script>
-  <script src="https://www.gstatic.com/firebasejs/8.10.0/firebase-auth.js"></script>
-  <script src="https://www.gstatic.com/firebasejs/8.10.0/firebase-database.js"></script>
+  <div class="controls">
+    <button id="startBtn">Find Partner</button>
+    <button id="nextBtn" disabled>Next</button>
+    <button id="hangBtn" disabled>Hang Up</button>
+    <button id="muteBtn" disabled>Mute</button>
+    <button id="camBtn" disabled>Camera Off</button>
+  </div>
 
-  <script>
+<script>
+(async function(){
+
+  // ---------------- FIREBASE INIT ----------------
   const firebaseConfig = {
     apiKey: "AIzaSyB1VbLbqBxCiG_bfGoQgQyapXwHUQ-Q7BU",
     authDomain: "tamil-chat-2d54e.firebaseapp.com",
@@ -33,165 +65,187 @@
   firebase.initializeApp(firebaseConfig);
   const db = firebase.database();
 
-  // UI
-  const startBtn = document.getElementById('startBtn');
-  const hangBtn = document.getElementById('hangBtn');
-  const localVideo = document.getElementById('localVideo');
-  const remoteVideo = document.getElementById('remoteVideo');
+  // 🔥 Anonymous login (REQUIRED for secure rules)
+  await firebase.auth().signInAnonymously();
 
-  // WebRTC
-  const iceConfig = { iceServers: [{ urls: 'stun:stun.l.google.com:19302' }] };
+  // ---------------- DOM ----------------
+  const localVideo = document.getElementById("localVideo");
+  const remoteVideo = document.getElementById("remoteVideo");
+  const waitingOverlay = document.getElementById("waitingOverlay");
+
+  const startBtn = document.getElementById("startBtn");
+  const nextBtn = document.getElementById("nextBtn");
+  const hangBtn = document.getElementById("hangBtn");
+  const muteBtn = document.getElementById("muteBtn");
+  const camBtn = document.getElementById("camBtn");
+
+  // ---------------- VARIABLES ----------------
+  let clientId = "u_" + Math.random().toString(36).substr(2,8);
+  let queueKey = null, callId = null, isInitiator = false;
   let pc = null, localStream = null;
+  let localCandidatesRef = null, remoteCandidatesRef = null;
 
-  // auth then app logic
-  firebase.auth().signInAnonymously()
-    .then(() => {
-      const user = firebase.auth().currentUser;
-      console.log('Signed in as', user.uid);
-      // ready to use startBtn
-    })
-    .catch(err => console.error('Auth error', err));
+  const iceConfig = { iceServers: [{ urls:"stun:stun.l.google.com:19302" }] };
+
+  // ---------------- FUNCTIONS ----------------
 
   async function getLocalStream(){
-    if(localStream) return localStream;
+    if (localStream) return localStream;
     localStream = await navigator.mediaDevices.getUserMedia({video:true,audio:true});
     localVideo.srcObject = localStream;
     return localStream;
   }
 
-  // matchmaker
-  async function enterQueue(){
-    const user = firebase.auth().currentUser;
-    if(!user) return alert('Not authenticated');
-    const uid = user.uid;
-    const qRef = db.ref('queue/' + uid);
-    await qRef.set({ id: uid, ts: Date.now() });
-    qRef.onDisconnect().remove();
+  function showOverlay(v){ waitingOverlay.style.display = v ? "flex" : "none"; }
 
-    // watch queue for others
-    db.ref('queue').on('child_added', async snap => {
-      const otherKey = snap.key;
-      if(otherKey === uid) return; // ignore self
-      // try to create a pair using a transaction on pairs/<pairKey>
-      const ids = [uid, otherKey].sort();
-      const pairKey = ids.join('_');
-      const pairRef = db.ref('pairs/' + pairKey);
-      pairRef.transaction(current => {
-        if(current === null) {
-          return { a: ids[0], b: ids[1], created: Date.now() };
-        }
-        return; // already taken
-      }, (err, committed) => {
-        if(err) return console.error(err);
-        if(committed) {
-          // remove both from queue, start call
-          db.ref('queue/' + uid).remove().catch(()=>{});
-          db.ref('queue/' + otherKey).remove().catch(()=>{});
-          startCall('call_' + pairKey, uid === ids[0]); // initiator if our uid is first after sort
+  async function enterQueue(){
+    const ref = db.ref("queue");
+    const newRef = ref.push();
+    queueKey = newRef.key;
+
+    await newRef.set({ id: clientId, ts: Date.now() });
+    newRef.onDisconnect().remove();
+
+    showOverlay(true);
+    watchQueue();
+    watchPair();
+  }
+
+  function watchQueue(){
+    db.ref("queue").on("child_added", async snap => {
+      if (snap.key === queueKey) return;
+
+      const other = snap.key;
+      const pairRef = db.ref("pairs/"+other);
+
+      await pairRef.transaction(cur=>{
+        if (cur === null) return { a: other, b: queueKey };
+        return;
+      }, (err, committed)=>{
+        if (committed) {
+          const ids = [other, queueKey].sort();
+          callId = "call_"+ids[0]+"_"+ids[1];
+          isInitiator = true;
+
+          db.ref("queue/"+other).remove();
+          db.ref("queue/"+queueKey).remove();
+
+          startCall(callId);
         }
       });
     });
+  }
 
-    // watch if someone pairs with us
-    db.ref('pairs').on('child_added', snap => {
-      const key = snap.key;
-      if(!key) return;
-      if(!key.includes(uid)) return;
-      // if pair involves us and we haven't started call yet
-      startCall('call_' + key, false);
+  function watchPair(){
+    db.ref("pairs/"+queueKey).on("value", snap=>{
+      const val = snap.val();
+      if (!val || callId) return;
+
+      const other = val.a===queueKey ? val.b : val.a;
+      const ids = [other, queueKey].sort();
+      callId = "call_"+ids[0]+"_"+ids[1];
+      isInitiator = false;
+
+      db.ref("queue/"+other).remove();
+      db.ref("queue/"+queueKey).remove();
+
+      startCall(callId);
     });
   }
 
-  async function startCall(callId, isInitiator){
+  // ---------------- WebRTC CALL ----------------
+
+  async function startCall(id){
+
     await getLocalStream();
-    if(pc) return;
     pc = new RTCPeerConnection(iceConfig);
-    localStream.getTracks().forEach(t => pc.addTrack(t, localStream));
-    pc.ontrack = e => { remoteVideo.srcObject = e.streams[0]; };
+    localStream.getTracks().forEach(track=>pc.addTrack(track, localStream));
 
-    const callRef = db.ref('calls/' + callId);
-    const offerRef = callRef.child('offer');
-    const answerRef = callRef.child('answer');
-    const offerCandidatesRef = callRef.child('offerCandidates');
-    const answerCandidatesRef = callRef.child('answerCandidates');
+    pc.ontrack = e => remoteVideo.srcObject = e.streams[0];
 
-    // ICE
-    pc.onicecandidate = e => {
-      if(!e.candidate) return;
-      const c = e.candidate.toJSON();
-      const target = isInitiator ? offerCandidatesRef : answerCandidatesRef;
-      target.push(c);
+    pc.onicecandidate = e=>{
+      if (e.candidate && localCandidatesRef)
+        localCandidatesRef.push(e.candidate.toJSON());
     };
 
-    // listen for remote candidates
-    const remoteCandidatesRef = isInitiator ? answerCandidatesRef : offerCandidatesRef;
-    remoteCandidatesRef.on('child_added', snap => {
+    const callRef = db.ref("calls/"+id);
+    const offerRef = callRef.child("offer");
+    const answerRef = callRef.child("answer");
+
+    localCandidatesRef = callRef.child(isInitiator ? "offerCandidates" : "answerCandidates");
+    remoteCandidatesRef = callRef.child(isInitiator ? "answerCandidates" : "offerCandidates");
+
+    remoteCandidatesRef.on("child_added", snap=>{
       const c = snap.val();
-      if(c) pc.addIceCandidate(new RTCIceCandidate(c)).catch(()=>{});
+      pc.addIceCandidate(new RTCIceCandidate(c));
     });
 
-    if(isInitiator){
+    if (isInitiator){
       const offer = await pc.createOffer();
       await pc.setLocalDescription(offer);
-      await offerRef.set({ type: offer.type, sdp: offer.sdp });
-      // wait answer
-      answerRef.on('value', async snap => {
+      offerRef.set({type:offer.type, sdp:offer.sdp});
+
+      answerRef.on("value", async snap=>{
         const data = snap.val();
-        if(data && data.sdp && !pc.currentRemoteDescription){
+        if (data && data.sdp)
           await pc.setRemoteDescription(new RTCSessionDescription(data));
-        }
       });
     } else {
-      offerRef.on('value', async snap => {
+      offerRef.on("value", async snap=>{
         const data = snap.val();
-        if(data && data.sdp && !pc.currentRemoteDescription){
-          await pc.setRemoteDescription(new RTCSessionDescription(data));
-          const answer = await pc.createAnswer();
-          await pc.setLocalDescription(answer);
-          await answerRef.set({ type: answer.type, sdp: answer.sdp });
-        }
+        if (!data || !data.sdp) return;
+
+        await pc.setRemoteDescription(new RTCSessionDescription(data));
+
+        const answer = await pc.createAnswer();
+        await pc.setLocalDescription(answer);
+        answerRef.set({type:answer.type, sdp:answer.sdp});
       });
     }
+
+    showOverlay(false);
 
     startBtn.disabled = true;
+    nextBtn.disabled = false;
     hangBtn.disabled = false;
+    muteBtn.disabled = false;
+    camBtn.disabled = false;
   }
 
+  // ---------------- HANG UP ----------------
   async function hangUp(){
-    if(pc) pc.close();
+    if (pc) pc.close();
+    if (callId) await db.ref("calls/"+callId).remove();
+
+    callId = null;
     pc = null;
-    // remove any call entries related to this user
-    const user = firebase.auth().currentUser;
-    if(user) {
-      const uid = user.uid;
-      // remove queue slot and any calls/pairs referencing us (best-effort)
-      db.ref('queue/' + uid).remove().catch(()=>{});
-      // remove pairs that include our uid
-      db.ref('pairs').once('value').then(snap=>{
-        const v = snap.val()||{};
-        Object.keys(v).forEach(k=>{
-          if(k.includes(uid)) db.ref('pairs/'+k).remove().catch(()=>{});
-        });
-      });
-      // remove calls with our uid in key (best-effort)
-      db.ref('calls').once('value').then(snap=>{
-        const v = snap.val()||{};
-        Object.keys(v).forEach(k=>{
-          if(k.includes(uid)) db.ref('calls/'+k).remove().catch(()=>{});
-        });
-      });
-    }
+
     startBtn.disabled = false;
+    nextBtn.disabled = true;
     hangBtn.disabled = true;
+
+    showOverlay(true);
   }
 
-  // UI handlers
-  startBtn.addEventListener('click', async ()=>{
-    await getLocalStream();
-    enterQueue();
-  });
-  hangBtn.addEventListener('click', hangUp);
-  </script>
+  // ---------------- BUTTONS ----------------
+  startBtn.onclick = () => getLocalStream().then(enterQueue);
+  nextBtn.onclick = async () => { await hangUp(); enterQueue(); };
+  hangBtn.onclick = hangUp;
+
+  muteBtn.onclick = ()=>{
+    let t = localStream.getAudioTracks()[0];
+    t.enabled = !t.enabled;
+    muteBtn.textContent = t.enabled ? "Mute" : "Unmute";
+  };
+
+  camBtn.onclick = ()=>{
+    let t = localStream.getVideoTracks()[0];
+    t.enabled = !t.enabled;
+    camBtn.textContent = t.enabled ? "Camera Off" : "Camera On";
+  };
+
+})();
+</script>
+
 </body>
 </html>
-
