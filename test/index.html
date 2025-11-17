@@ -1,1 +1,197 @@
+<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8" />
+  <title>Random Video Chat (Secure)</title>
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <style> /* styles kept minimal */ body{background:#111;color:#fff;font-family:sans-serif} #videoContainer{height:60vh;background:#000}</style>
+</head>
+<body>
+  <h2>Random Video Chat</h2>
+  <div id="videoContainer">
+    <video id="remoteVideo" autoplay playsinline style="width:100%;height:100%;object-fit:cover"></video>
+    <video id="localVideo" autoplay muted playsinline style="position:absolute;right:12px;top:12px;width:160px"></video>
+  </div>
+  <button id="startBtn">Find Partner</button>
+  <button id="hangBtn" disabled>Hang Up</button>
+
+  <!-- Firebase 8 compat -->
+  <script src="https://www.gstatic.com/firebasejs/8.10.0/firebase-app.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/8.10.0/firebase-auth.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/8.10.0/firebase-database.js"></script>
+
+  <script>
+  const firebaseConfig = {
+    apiKey: "AIzaSyB1VbLbqBxCiG_bfGoQgQyapXwHUQ-Q7BU",
+    authDomain: "tamil-chat-2d54e.firebaseapp.com",
+    databaseURL: "https://tamil-chat-2d54e-default-rtdb.firebaseio.com",
+    projectId: "tamil-chat-2d54e",
+    storageBucket: "tamil-chat-2d54e.appspot.com",
+    messagingSenderId: "804705969240",
+    appId: "1:804705969240:web:658df281dd8360843c162d"
+  };
+  firebase.initializeApp(firebaseConfig);
+  const db = firebase.database();
+
+  // UI
+  const startBtn = document.getElementById('startBtn');
+  const hangBtn = document.getElementById('hangBtn');
+  const localVideo = document.getElementById('localVideo');
+  const remoteVideo = document.getElementById('remoteVideo');
+
+  // WebRTC
+  const iceConfig = { iceServers: [{ urls: 'stun:stun.l.google.com:19302' }] };
+  let pc = null, localStream = null;
+
+  // auth then app logic
+  firebase.auth().signInAnonymously()
+    .then(() => {
+      const user = firebase.auth().currentUser;
+      console.log('Signed in as', user.uid);
+      // ready to use startBtn
+    })
+    .catch(err => console.error('Auth error', err));
+
+  async function getLocalStream(){
+    if(localStream) return localStream;
+    localStream = await navigator.mediaDevices.getUserMedia({video:true,audio:true});
+    localVideo.srcObject = localStream;
+    return localStream;
+  }
+
+  // matchmaker
+  async function enterQueue(){
+    const user = firebase.auth().currentUser;
+    if(!user) return alert('Not authenticated');
+    const uid = user.uid;
+    const qRef = db.ref('queue/' + uid);
+    await qRef.set({ id: uid, ts: Date.now() });
+    qRef.onDisconnect().remove();
+
+    // watch queue for others
+    db.ref('queue').on('child_added', async snap => {
+      const otherKey = snap.key;
+      if(otherKey === uid) return; // ignore self
+      // try to create a pair using a transaction on pairs/<pairKey>
+      const ids = [uid, otherKey].sort();
+      const pairKey = ids.join('_');
+      const pairRef = db.ref('pairs/' + pairKey);
+      pairRef.transaction(current => {
+        if(current === null) {
+          return { a: ids[0], b: ids[1], created: Date.now() };
+        }
+        return; // already taken
+      }, (err, committed) => {
+        if(err) return console.error(err);
+        if(committed) {
+          // remove both from queue, start call
+          db.ref('queue/' + uid).remove().catch(()=>{});
+          db.ref('queue/' + otherKey).remove().catch(()=>{});
+          startCall('call_' + pairKey, uid === ids[0]); // initiator if our uid is first after sort
+        }
+      });
+    });
+
+    // watch if someone pairs with us
+    db.ref('pairs').on('child_added', snap => {
+      const key = snap.key;
+      if(!key) return;
+      if(!key.includes(uid)) return;
+      // if pair involves us and we haven't started call yet
+      startCall('call_' + key, false);
+    });
+  }
+
+  async function startCall(callId, isInitiator){
+    await getLocalStream();
+    if(pc) return;
+    pc = new RTCPeerConnection(iceConfig);
+    localStream.getTracks().forEach(t => pc.addTrack(t, localStream));
+    pc.ontrack = e => { remoteVideo.srcObject = e.streams[0]; };
+
+    const callRef = db.ref('calls/' + callId);
+    const offerRef = callRef.child('offer');
+    const answerRef = callRef.child('answer');
+    const offerCandidatesRef = callRef.child('offerCandidates');
+    const answerCandidatesRef = callRef.child('answerCandidates');
+
+    // ICE
+    pc.onicecandidate = e => {
+      if(!e.candidate) return;
+      const c = e.candidate.toJSON();
+      const target = isInitiator ? offerCandidatesRef : answerCandidatesRef;
+      target.push(c);
+    };
+
+    // listen for remote candidates
+    const remoteCandidatesRef = isInitiator ? answerCandidatesRef : offerCandidatesRef;
+    remoteCandidatesRef.on('child_added', snap => {
+      const c = snap.val();
+      if(c) pc.addIceCandidate(new RTCIceCandidate(c)).catch(()=>{});
+    });
+
+    if(isInitiator){
+      const offer = await pc.createOffer();
+      await pc.setLocalDescription(offer);
+      await offerRef.set({ type: offer.type, sdp: offer.sdp });
+      // wait answer
+      answerRef.on('value', async snap => {
+        const data = snap.val();
+        if(data && data.sdp && !pc.currentRemoteDescription){
+          await pc.setRemoteDescription(new RTCSessionDescription(data));
+        }
+      });
+    } else {
+      offerRef.on('value', async snap => {
+        const data = snap.val();
+        if(data && data.sdp && !pc.currentRemoteDescription){
+          await pc.setRemoteDescription(new RTCSessionDescription(data));
+          const answer = await pc.createAnswer();
+          await pc.setLocalDescription(answer);
+          await answerRef.set({ type: answer.type, sdp: answer.sdp });
+        }
+      });
+    }
+
+    startBtn.disabled = true;
+    hangBtn.disabled = false;
+  }
+
+  async function hangUp(){
+    if(pc) pc.close();
+    pc = null;
+    // remove any call entries related to this user
+    const user = firebase.auth().currentUser;
+    if(user) {
+      const uid = user.uid;
+      // remove queue slot and any calls/pairs referencing us (best-effort)
+      db.ref('queue/' + uid).remove().catch(()=>{});
+      // remove pairs that include our uid
+      db.ref('pairs').once('value').then(snap=>{
+        const v = snap.val()||{};
+        Object.keys(v).forEach(k=>{
+          if(k.includes(uid)) db.ref('pairs/'+k).remove().catch(()=>{});
+        });
+      });
+      // remove calls with our uid in key (best-effort)
+      db.ref('calls').once('value').then(snap=>{
+        const v = snap.val()||{};
+        Object.keys(v).forEach(k=>{
+          if(k.includes(uid)) db.ref('calls/'+k).remove().catch(()=>{});
+        });
+      });
+    }
+    startBtn.disabled = false;
+    hangBtn.disabled = true;
+  }
+
+  // UI handlers
+  startBtn.addEventListener('click', async ()=>{
+    await getLocalStream();
+    enterQueue();
+  });
+  hangBtn.addEventListener('click', hangUp);
+  </script>
+</body>
+</html>
 
