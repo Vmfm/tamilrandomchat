@@ -2,58 +2,103 @@
 <html>
 <head>
   <meta charset="utf-8" />
-  <title>Random Video Chat - Tamil VM (Fixed)</title>
+  <title>Random Video Chat — Advanced (Tamil VM)</title>
   <meta name="viewport" content="width=device-width,initial-scale=1" />
   <style>
-    body{font-family:sans-serif;background:#111;color:#eee;margin:0;padding:0}
-    #videoContainer{position:relative;width:100%;height:70vh;background:#000;display:flex;align-items:center;justify-content:center;overflow:hidden}
+    /* Minimal styling — tweak as you like */
+    body{font-family:system-ui,Segoe UI,Roboto,Arial;margin:0;background:#0b1114;color:#eee;display:flex;flex-direction:column;min-height:100vh}
+    header{padding:12px 16px;background:#071018;display:flex;gap:12px;align-items:center}
+    header .title{font-weight:700}
+    #controls{padding:12px;display:flex;align-items:center;gap:10px;background:#071018}
+    .btn{padding:8px 12px;border-radius:6px;border:0;cursor:pointer;background:#0ea5e9;color:#012; font-weight:600}
+    .btn.secondary{background:#ef4444;color:#fff}
+    .small{padding:6px 8px;border-radius:6px;border:0;background:#111827;color:#fff}
+    #layout{display:flex;gap:10px;padding:12px;flex:1}
+    #left{flex:1;background:#01060a;padding:10px;border-radius:8px;display:flex;flex-direction:column;gap:10px}
+    #videoContainer{position:relative;background:#000;border-radius:8px;flex:1;display:flex;align-items:center;justify-content:center;overflow:hidden}
     video{width:100%;height:100%;object-fit:cover;background:#000}
-    #localVideo{position:absolute;top:10px;right:10px;width:160px;height:120px;object-fit:cover;border:2px solid #fff;border-radius:8px;z-index:2}
-    #waitingOverlay{position:absolute;inset:0;background:rgba(0,0,0,.72);display:flex;flex-direction:column;align-items:center;justify-content:center;gap:10px;z-index:1}
-    .spinner{width:40px;height:40px;border:5px solid #999;border-top:5px solid #fff;border-radius:50%;animation:spin 1s linear infinite}
-    @keyframes spin{0%{transform:rotate(0)}100%{transform:rotate(360deg)}}
-    .controls{text-align:center;padding:14px}
-    button{padding:10px 14px;margin:6px;border-radius:8px;border:0;color:#fff;cursor:pointer}
-    #startBtn{background:#2563eb}#nextBtn{background:#10b981}#hangBtn{background:#ef4444}#muteBtn{background:#f59e0b}#camBtn{background:#8b5cf6}
-    #status{display:block;margin-top:8px;color:#bbb}#timer{display:block;color:#aaa;margin-top:6px}
+    #localVideo{position:absolute;right:10px;top:10px;width:180px;height:130px;border-radius:8px;border:2px solid rgba(255,255,255,0.08);object-fit:cover}
+    #waiting{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;background:rgba(0,0,0,0.65);z-index:5;flex-direction:column;gap:8px;font-size:18px}
+    #right{width:320px;display:flex;flex-direction:column;gap:8px}
+    label{font-size:13px;color:#9ca3af}
+    select,input{width:100%;padding:8px;border-radius:6px;border:0;background:#071018;color:#fff}
+    .meta{font-size:13px;color:#94a3b8}
+    #timer{font-size:13px;color:#94a3b8}
+    footer{padding:8px;text-align:center;color:#6b7280;font-size:13px}
   </style>
-
-  <!-- Firebase compat -->
-  <script src="https://www.gstatic.com/firebasejs/9.22.2/firebase-app-compat.js"></script>
-  <script src="https://www.gstatic.com/firebasejs/9.22.2/firebase-database-compat.js"></script>
 </head>
 <body>
-  <h2 style="text-align:center;margin:12px 0">🔥 Random Video - Tamil VM (Fixed)</h2>
+  <header>
+    <div class="title">🔥 Random Video Chat — Advanced (Tamil VM)</div>
+    <div style="flex:1"></div>
+    <div class="meta">Filters + Anti-repeat + Secure rules</div>
+  </header>
 
-  <div id="videoContainer">
-    <video id="remoteVideo" autoplay playsinline></video>
-    <video id="localVideo" autoplay muted playsinline></video>
-
-    <div id="waitingOverlay">
-      <div class="spinner"></div>
-      <div id="waitingText">Idle — click "Find Partner"</div>
-    </div>
-  </div>
-
-  <div class="controls">
-    <button id="startBtn">Find Partner</button>
-    <button id="nextBtn" disabled>Next</button>
-    <button id="hangBtn" disabled>Hang Up</button>
-    <button id="muteBtn" disabled>Mute</button>
-    <button id="camBtn" disabled>Camera Off</button>
-    <button id="fullscreenBtn">Fullscreen</button>
-    <button id="themeBtn">Theme</button>
-
-    <div id="status">Status: Idle</div>
+  <div id="controls">
+    <button id="startBtn" class="btn">Find Partner</button>
+    <button id="nextBtn" class="btn" disabled>Next</button>
+    <button id="hangBtn" class="btn secondary" disabled>Hang Up</button>
+    <button id="muteBtn" class="small" disabled>Mute</button>
+    <button id="camBtn" class="small" disabled>Cam Off</button>
+    <div style="flex:1"></div>
     <div id="timer">Call Duration: 00:00</div>
   </div>
 
-  <audio id="connectSound" src="https://www.myinstants.com/media/sounds/iphone-notification.mp3"></audio>
+  <div id="layout">
+    <div id="left">
+      <div id="videoContainer">
+        <div id="waiting"><div id="waitSpinner">🔄</div><div id="waitText">Idle</div></div>
+        <video id="remoteVideo" autoplay playsinline></video>
+        <video id="localVideo" autoplay muted playsinline></video>
+      </div>
+    </div>
 
-<script>
-(async function () {
-  // ---------- CONFIG: Option A (sample project) ----------
-  const firebaseConfig = {
+    <div id="right">
+      <div>
+        <label>Your display name (stored locally)</label>
+        <input id="displayName" placeholder="Enter a name (optional)"/>
+      </div>
+
+      <div>
+        <label>Gender filter</label>
+        <select id="genderFilter">
+          <option value="any">Any</option>
+          <option value="male">Male</option>
+          <option value="female">Female</option>
+          <option value="other">Other</option>
+        </select>
+      </div>
+
+      <div>
+        <label>Country filter (optional)</label>
+        <input id="countryFilter" placeholder="Any country (e.g. IN, US)"/>
+        <div class="meta" style="margin-top:6px">When blank: any country.</div>
+      </div>
+
+      <div>
+        <label>Recent matches to avoid</label>
+        <div id="recentList" class="meta">(keeps last 20 partners locally)</div>
+      </div>
+
+      <div>
+        <label>Connection status</label>
+        <div id="status" class="meta">Idle</div>
+      </div>
+    </div>
+  </div>
+
+  <footer>Replace the firebaseConfig with your project's config. Use the provided rules in console.</footer>
+
+  <!-- Firebase compat + auth + database -->
+  <script src="https://www.gstatic.com/firebasejs/9.22.2/firebase-app-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/9.22.2/firebase-auth-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/9.22.2/firebase-database-compat.js"></script>
+
+  <script>
+  (async ()=>{
+
+    /***** REPLACE THIS WITH YOUR FIREBASE CONFIG *****/
+    const firebaseConfig = {
     apiKey: "AIzaSyAlWP5D79PsX29H0hIZlfvL0YV5Us7v5I4",
     authDomain: "sample-firebase-ai-app-1f408.firebaseapp.com",
     databaseURL: "https://sample-firebase-ai-app-1f408-default-rtdb.asia-southeast1.firebasedatabase.app",
@@ -62,350 +107,421 @@
     messagingSenderId: "657942233322",
     appId: "1:657942233322:web:a8dd9896ca8cfccdbb5793"
   };
-  firebase.initializeApp(firebaseConfig);
-  const db = firebase.database();
+    /*************************************************/
 
-  // ---------- UI ----------
-  const localVideo = document.getElementById('localVideo');
-  const remoteVideo = document.getElementById('remoteVideo');
-  const waitingOverlay = document.getElementById('waitingOverlay');
-  const waitingText = document.getElementById('waitingText');
-  const startBtn = document.getElementById('startBtn');
-  const nextBtn = document.getElementById('nextBtn');
-  const hangBtn = document.getElementById('hangBtn');
-  const muteBtn = document.getElementById('muteBtn');
-  const camBtn = document.getElementById('camBtn');
-  const fullscreenBtn = document.getElementById('fullscreenBtn');
-  const themeBtn = document.getElementById('themeBtn');
-  const statusEl = document.getElementById('status');
-  const timerEl = document.getElementById('timer');
-  const connectSound = document.getElementById('connectSound');
+    firebase.initializeApp(firebaseConfig);
+    const auth = firebase.auth();
+    const db = firebase.database();
 
-  // ---------- state ----------
-  const clientId = 'c_' + Math.random().toString(36).slice(2,10);
-  let queueKey = null;           // our queue node key
-  let callId = null;             // current call id (calls/{callId})
-  let isInitiator = false;
-  let pc = null;
-  let localStream = null;
-  let localCandidatesRef = null;
-  let remoteCandidatesRef = null;
-  let callRef = null;
-  let queueRef = db.ref('queue');
-  let pairsRef = db.ref('pairs');
-  let callsRootRef = db.ref('calls');
-  const iceConfig = { iceServers: [{ urls: "stun:stun.l.google.com:19302" }] };
-
-  let timerInterval = null;
-  let startTime = null;
-
-  // ---------- helpers ----------
-  function setStatus(txt){ statusEl.textContent = 'Status: ' + txt; }
-  function showOverlay(show, text=''){ waitingOverlay.style.display = show ? 'flex' : 'none'; waitingText.textContent = text; }
-  function enableControls(connected){
-    startBtn.disabled = connected;
-    hangBtn.disabled = !connected;
-    nextBtn.disabled = !connected;
-    muteBtn.disabled = !connected;
-    camBtn.disabled = !connected;
-  }
-  function startTimer(){
-    startTime = Date.now();
-    timerEl.textContent = 'Call Duration: 00:00';
-    clearInterval(timerInterval);
-    timerInterval = setInterval(()=> {
-      const diff = Date.now() - startTime;
-      const mins = String(Math.floor(diff/60000)).padStart(2,'0');
-      const secs = String(Math.floor((diff%60000)/1000)).padStart(2,'0');
-      timerEl.textContent = `Call Duration: ${mins}:${secs}`;
-    }, 1000);
-  }
-  function stopTimer(){ clearInterval(timerInterval); timerEl.textContent = 'Call Duration: 00:00'; }
-
-  // ---------- Media ----------
-  async function getLocalStream(){
-    if(localStream) return localStream;
+    // sign in anonymously (we require auth in rules)
+    let meUid = null;
     try {
-      localStream = await navigator.mediaDevices.getUserMedia({ video: true, audio: true });
-      localVideo.srcObject = localStream;
-      return localStream;
+      const res = await auth.signInAnonymously();
+      meUid = res.user.uid;
+      console.log('signed in anonymously', meUid);
     } catch(err){
-      console.error('getUserMedia error',err);
-      alert('Camera/mic access required.');
-      throw err;
-    }
-  }
-
-  // ---------- QUEUE / MATCHING ----------
-  async function enterQueue(){
-    // push our queue entry and set onDisconnect cleanup
-    const newRef = queueRef.push();
-    queueKey = newRef.key;
-    await newRef.set({ id: clientId, ts: Date.now() });
-    newRef.onDisconnect().remove();
-    setStatus('Waiting for partner...');
-    showOverlay(true, 'Waiting for partner...');
-    watchQueue();
-    watchPairForUs();
-  }
-
-  // When anyone pushes into queue, try to form a pair by writing to pairs/{otherKey}
-  function watchQueue(){
-    // Listen for new entries (others joining). When a new entry appears we attempt a transaction on pairs/{otherKey}
-    queueRef.on('child_added', async snap => {
-      try {
-        if(!snap.exists()) return;
-        const otherKey = snap.key;
-        if(otherKey === queueKey) return; // ignore our own entry
-        // Avoid pairing with ourselves (shouldn't happen)
-        if(!queueKey) return;
-        // Use transaction on pairs/{otherKey} to ensure only one partner pairs to that queue entry
-        const pairNode = db.ref('pairs/' + otherKey);
-        await pairNode.transaction(current => {
-          if (current === null) {
-            // create pair record linking otherKey and our queueKey
-            return { a: otherKey, b: queueKey, createdAt: Date.now() };
-          }
-          // someone else already claimed it
-          return;
-        }, (err, committed, snapshot) => {
-          if (err) {
-            console.warn('pair transaction err', err);
-            return;
-          }
-          if (committed && snapshot.exists()) {
-            // We've successfully formed a pair (we are the initiator)
-            // compute sorted id so both clients use same callId
-            const ids = [otherKey, queueKey].sort();
-            callId = `call_${ids[0]}_${ids[1]}`;
-            isInitiator = true;
-            // remove both queue entries (cleanup)
-            db.ref('queue/' + otherKey).remove().catch(()=>{});
-            db.ref('queue/' + queueKey).remove().catch(()=>{ queueKey = null; });
-            startCall(callId);
-          }
-        });
-      } catch(e){ console.error('watchQueue child_added error', e); }
-    });
-  }
-
-  // If someone else created a pair referencing our queueKey, we should start the call (we're the responder)
-  function watchPairForUs(){
-    const myPairRef = db.ref('pairs/' + queueKey);
-    myPairRef.on('value', snap=>{
-      const val = snap.val();
-      if(!val) return;
-      // val contains {a: otherKey, b: ourQueueKey} OR vice versa
-      if(!callId && val && (val.a === queueKey || val.b === queueKey)){
-        // Determine partner's queue key
-        const other = (val.a === queueKey) ? val.b : val.a;
-        if(!other) return;
-        const ids = [other, queueKey].sort();
-        callId = `call_${ids[0]}_${ids[1]}`;
-        isInitiator = false; // we respond
-        // remove both queue entries
-        db.ref('queue/' + other).remove().catch(()=>{});
-        db.ref('queue/' + queueKey).remove().catch(()=>{ queueKey = null; });
-        startCall(callId);
-      }
-    });
-    myPairRef.onDisconnect().remove(); // cleanup pairs record if we disconnect while waiting (defensive)
-  }
-
-  // ---------- START / SIGNALING ----------
-  async function startCall(id){
-    try {
-      await getLocalStream();
-    } catch(e){ return; }
-
-    setStatus('Starting call...');
-    pc = new RTCPeerConnection(iceConfig);
-    // add our tracks
-    localStream.getTracks().forEach(t => pc.addTrack(t, localStream));
-
-    pc.ontrack = e => {
-      // first ontrack will carry remote stream
-      if (e.streams && e.streams[0]) remoteVideo.srcObject = e.streams[0];
-    };
-
-    // handle remote candidate arrivals
-    pc.onicecandidate = e => {
-      // push our local candidates to localCandidatesRef
-      if (e.candidate && localCandidatesRef) {
-        localCandidatesRef.push(e.candidate.toJSON()).catch(()=>{});
-      }
-    };
-
-    // listen for iceConnection changes to auto-hangup on disconnect/failure
-    pc.oniceconnectionstatechange = () => {
-      const st = pc.iceConnectionState;
-      if (["failed","disconnected","closed"].includes(st)) {
-        // cleanup
-        hangUp();
-      }
-    };
-
-    // prepare call node and candidate nodes
-    callRef = db.ref('calls/' + id);
-    const offerRef = callRef.child('offer');
-    const answerRef = callRef.child('answer');
-
-    // local/remote candidate refs (both sides read from the other's candidate list)
-    localCandidatesRef = callRef.child(isInitiator ? 'offerCandidates' : 'answerCandidates');
-    remoteCandidatesRef = callRef.child(isInitiator ? 'answerCandidates' : 'offerCandidates');
-
-    // keep listeners limited: on child_added add candidate
-    const remoteCandHandler = remoteCandidatesRef.on('child_added', snap => {
-      const c = snap.val();
-      if(!c) return;
-      try { pc.addIceCandidate(new RTCIceCandidate(c)).catch(()=>{}); } catch(e){ console.warn('addIceCandidate err', e); }
-    });
-
-    // Also listen if the call node is deleted/cleared by other side -> hang up
-    const callDeletedHandler = callRef.on('value', snap => {
-      // if call node removed (null) -> hang up
-      if (!snap.exists()){
-        // cleanup
-        hangUp();
-      }
-    });
-
-    // OFFER / ANSWER flow
-    if (isInitiator) {
-      // create offer, save it, wait for answer
-      const offer = await pc.createOffer();
-      await pc.setLocalDescription(offer);
-      await offerRef.set({ type: offer.type, sdp: offer.sdp });
-      // listen for answer
-      answerRef.on('value', async snap => {
-        const data = snap.val();
-        if (data && data.sdp && (!pc.remoteDescription || !pc.remoteDescription.type)) {
-          try {
-            await pc.setRemoteDescription(new RTCSessionDescription(data));
-          } catch(e){ console.warn('setRemoteDescription (initiator) failed',e); }
-        }
-      });
-    } else {
-      // responder waits for offer, sets remote, creates answer
-      offerRef.on('value', async snap => {
-        const data = snap.val();
-        if (data && data.sdp && (!pc.remoteDescription || !pc.remoteDescription.type)) {
-          try {
-            await pc.setRemoteDescription(new RTCSessionDescription(data));
-            const answer = await pc.createAnswer();
-            await pc.setLocalDescription(answer);
-            await answerRef.set({ type: answer.type, sdp: answer.sdp });
-          } catch(e){ console.warn('responder flow error', e); }
-        }
-      });
-    }
-
-    // Update UI
-    enableControls(true);
-    setStatus('Connected');
-    showOverlay(false);
-    startTimer();
-    try { connectSound.currentTime = 0; connectSound.play().catch(()=>{}); } catch(e){}
-  }
-
-  // ---------- HANGUP / CLEANUP ----------
-  async function hangUp(){
-    // close peer connection
-    try { if(pc) { pc.close(); } } catch(e){}
-
-    // cleanup firebase entries related to this call (only if we created them or they exist)
-    if (callId) {
-      try {
-        // remove only our candidate entries if any; safe to remove entire call node to fully clean
-        await db.ref('calls/' + callId).remove().catch(()=>{});
-      } catch(e){ console.warn('call remove err', e); }
-    }
-    // remove our queue entry if still present
-    if (queueKey) {
-      try { await db.ref('queue/' + queueKey).remove().catch(()=>{}); } catch(e){}
-      queueKey = null;
-    }
-
-    // reset state
-    pc = null;
-    callId = null;
-    isInitiator = false;
-    localCandidatesRef = null;
-    remoteCandidatesRef = null;
-    callRef = null;
-
-    enableControls(false);
-    setStatus('Idle');
-    showOverlay(true, 'Waiting for partner...');
-    stopTimer();
-  }
-
-  // ---------- UI actions ----------
-  startBtn.onclick = async () => {
-    try {
-      await getLocalStream();
-    } catch(e){ return; }
-    // ensure we aren't already in queue
-    if (queueKey) {
-      showOverlay(true, 'Already in queue...');
+      console.error('auth failed', err); alert('Firebase anonymous auth failed: '+err.message);
       return;
     }
-    await enterQueue();
-  };
 
-  nextBtn.onclick = async () => {
-    // hangup current call then re-enter queue
-    await hangUp();
-    // short delay so remote cleanup propagates
-    setTimeout(()=> startBtn.click(), 250);
-  };
+    // DOM
+    const startBtn = document.getElementById('startBtn');
+    const nextBtn = document.getElementById('nextBtn');
+    const hangBtn = document.getElementById('hangBtn');
+    const muteBtn = document.getElementById('muteBtn');
+    const camBtn = document.getElementById('camBtn');
+    const waitText = document.getElementById('waitText');
+    const waiting = document.getElementById('waiting');
+    const localVideo = document.getElementById('localVideo');
+    const remoteVideo = document.getElementById('remoteVideo');
+    const statusEl = document.getElementById('status');
+    const timerEl = document.getElementById('timer');
+    const genderFilterEl = document.getElementById('genderFilter');
+    const countryFilterEl = document.getElementById('countryFilter');
+    const displayNameEl = document.getElementById('displayName');
+    const recentListEl = document.getElementById('recentList');
 
-  hangBtn.onclick = async () => {
-    await hangUp();
-  };
+    // store settings
+    const KEY_RECENT = 'rv_recent_matches_v1';
+    const KEY_NAME = 'rv_my_name_v1';
+    const recentMatches = JSON.parse(localStorage.getItem(KEY_RECENT) || '[]'); // array of partner uids
+    displayNameEl.value = localStorage.getItem(KEY_NAME) || '';
 
-  muteBtn.onclick = () => {
-    if(!localStream) return;
-    const t = localStream.getAudioTracks()[0];
-    if(!t) return;
-    t.enabled = !t.enabled;
-    muteBtn.textContent = t.enabled ? 'Mute' : 'Unmute';
-  };
+    function updateRecentUI(){
+      recentListEl.textContent = recentMatches.slice(-20).reverse().join(', ') || '(none)';
+    }
+    updateRecentUI();
 
-  camBtn.onclick = () => {
-    if(!localStream) return;
-    const t = localStream.getVideoTracks()[0];
-    if(!t) return;
-    t.enabled = !t.enabled;
-    camBtn.textContent = t.enabled ? 'Camera Off' : 'Camera On';
-  };
+    // local state
+    let pc = null;
+    let localStream = null;
+    let localCandidatesRef = null;
+    let remoteCandidatesRef = null;
+    let queueKey = null; // db push key of our queue entry
+    let callId = null;
+    let isInitiator = false;
+    let callRef = null;
+    let timerInterval = null;
+    let startTime = null;
 
-  fullscreenBtn.onclick = () => {
-    const el = document.documentElement;
-    if (!document.fullscreenElement) el.requestFullscreen().catch(()=>{});
-    else document.exitFullscreen();
-  };
+    const ICE = { iceServers: [{ urls: "stun:stun.l.google.com:19302" }] };
 
-  themeBtn.onclick = () => {
-    const cur = document.body.getAttribute('data-theme') || 'dark';
-    const nxt = cur === 'dark' ? 'light' : 'dark';
-    document.body.setAttribute('data-theme', nxt);
-    // colors aren't heavily themed in this snippet but toggles exist
-  };
+    function setStatus(s){ statusEl.textContent = s; waitText.textContent = s; }
 
-  // ---------- Unload cleanup ----------
-  window.addEventListener('beforeunload', async () => {
-    try {
-      if (queueKey) await db.ref('queue/' + queueKey).remove().catch(()=>{});
-      if (callId) await db.ref('calls/' + callId).remove().catch(()=>{});
-    } catch(e){}
-  });
+    // permissions + local stream
+    async function ensureLocalStream(){
+      if(localStream) return localStream;
+      try {
+        localStream = await navigator.mediaDevices.getUserMedia({video:true,audio:true});
+        localVideo.srcObject = localStream;
+        return localStream;
+      } catch(err){
+        console.error('getUserMedia failed', err);
+        alert('Camera / mic permission required: ' + err.message);
+        throw err;
+      }
+    }
 
-  // initial UI
-  enableControls(false);
-  showOverlay(true, 'Idle — click "Find Partner"');
-  setStatus('Idle');
-})();
-</script>
+    // helper to push queue entry with metadata
+    async function enterQueue(){
+      await ensureLocalStream();
+      const name = (displayNameEl.value || '').trim();
+      if(name) localStorage.setItem(KEY_NAME, name);
+      const gender = genderFilterEl.value || 'any';
+      const country = (countryFilterEl.value || '').trim().toLowerCase() || null;
+      // push to /queue
+      const qRef = db.ref('queue');
+      const newRef = qRef.push();
+      queueKey = newRef.key;
+      const payload = {
+        uid: meUid,
+        name: name || null,
+        gender: gender === 'any' ? null : gender,
+        country: country || null,
+        ts: Date.now()
+      };
+      // Write as owner only (rules require auth match)
+      await newRef.set(payload);
+      // ensure removal on disconnect
+      newRef.onDisconnect().remove();
+      setStatus('Waiting for partner...');
+      waiting.style.display = 'flex';
+      startWatchingQueue();
+      startWatchingPairForUs();
+    }
+
+    // pairing logic:
+    // - When a new queue child is added -> check its metadata vs our filters and recentMatches.
+    // - If OK, try to transaction a pair node at pairs/{otherKey} (same approach used previously).
+    // - We do a double-check read of other queue data before transaction to ensure we don't match wrong filters.
+    function startWatchingQueue(){
+      const qRef = db.ref('queue');
+      qRef.on('child_added', async snap => {
+        const otherKey = snap.key;
+        if(!otherKey) return;
+        if(otherKey === queueKey) return; // skip our own entry
+        // read other entry data
+        const other = snap.val();
+        if(!other || !other.uid) return;
+        // check anti-repeat: skip if their uid in recentMatches
+        if(recentMatches.includes(other.uid)) {
+          console.log('skipping candidate due to recentMatches', other.uid);
+          return;
+        }
+        // check filter compatibility: both directions
+        const myGenderPref = genderFilterEl.value || 'any';
+        const myCountryPref = (countryFilterEl.value || '').trim().toLowerCase() || null;
+        // other user's attributes
+        const otherGender = other.gender || null;
+        const otherCountry = (other.country || null);
+        // check that other meets our preference
+        if(myGenderPref !== 'any' && otherGender !== myGenderPref) {
+          console.log('candidate gender mismatch (we want)', myGenderPref, 'candidate has', otherGender);
+          return;
+        }
+        if(myCountryPref && otherCountry && myCountryPref !== otherCountry) {
+          console.log('candidate country mismatch (we want)', myCountryPref, 'candidate has', otherCountry);
+          return;
+        }
+        // check that we meet their preference (if they set a gender filter they'd want)
+        // fetch our queue entry (or our chosen fields)
+        const myQueueSnap = await db.ref('queue/'+queueKey).once('value');
+        const myData = myQueueSnap.val();
+        if(!myData) return; // maybe removed
+        if(other.gender && other.gender !== 'any'){
+          // if they requested a gender and we don't match, skip
+          const ourGender = myData.gender || null;
+          if(other.gender && ourGender && other.gender !== 'any' && ourGender !== other.gender){
+            console.log('we do not match their gender preference');
+            return;
+          }
+        }
+        if(other.country){
+          const ourCountry = (myData.country || null);
+          if(other.country && ourCountry && other.country !== ourCountry){
+            console.log('we do not match their country preference');
+            return;
+          }
+        }
+
+        // all checks passed — attempt to create pair using transaction on pairs/{otherKey}
+        const pairRef = db.ref('pairs/' + otherKey);
+        try {
+          await pairRef.transaction(current => {
+            if(current === null) {
+              // write a pair linking otherKey and our queueKey
+              return { a: otherKey, b: queueKey, created: Date.now() };
+            }
+            return; // someone else already paired this candidate
+          }, async (err, committed, snap2) => {
+            if(err) {
+              console.warn('pair transaction error', err);
+              return;
+            }
+            if(committed) {
+              // we succeeded in pairing (we are initiator)
+              const ids = [otherKey, queueKey].sort();
+              callId = "call_"+ids[0]+"_"+ids[1];
+              isInitiator = true;
+              // remove both queue entries (safe to attempt)
+              db.ref('queue/'+otherKey).remove().catch(()=>{});
+              db.ref('queue/'+queueKey).remove().catch(()=>{});
+              // start the call
+              startCall(callId);
+            } else {
+              // transaction not committed — someone else paired first
+            }
+          });
+        } catch(e){
+          console.error('pair txn exception', e);
+        }
+      });
+    }
+
+    // also watch pairs/<ourQueueKey> in case other paired us
+    function startWatchingPairForUs(){
+      const pRef = db.ref('pairs/'+queueKey);
+      pRef.on('value', snap=>{
+        const val = snap.val();
+        if(val && !callId) {
+          // other side created a pair that includes us
+          const other = val.a === queueKey ? val.b : val.a;
+          const ids = [other, queueKey].sort();
+          callId = "call_"+ids[0]+"_"+ids[1];
+          isInitiator = false;
+          // cleanup both queue entries
+          db.ref('queue/'+other).remove().catch(()=>{});
+          db.ref('queue/'+queueKey).remove().catch(()=>{});
+          startCall(callId);
+        }
+      });
+    }
+
+    // WebRTC / signaling using /calls/{callId}
+    async function startCall(id){
+      try {
+        await ensureLocalStream();
+      } catch(e){ return; }
+
+      setStatus('Starting call...');
+      pc = new RTCPeerConnection(ICE);
+      // add local tracks
+      localStream.getTracks().forEach(t => pc.addTrack(t, localStream));
+      // when remote track arrives
+      pc.ontrack = e => { remoteVideo.srcObject = e.streams[0]; };
+
+      // create refs
+      callRef = db.ref('calls/' + id);
+      const offerRef = callRef.child('offer');
+      const answerRef = callRef.child('answer');
+      localCandidatesRef = callRef.child(isInitiator ? 'offerCandidates' : 'answerCandidates');
+      remoteCandidatesRef = callRef.child(isInitiator ? 'answerCandidates' : 'offerCandidates');
+
+      // push local ICE candidates
+      pc.onicecandidate = e => {
+        if(e.candidate && localCandidatesRef) {
+          localCandidatesRef.push(e.candidate.toJSON()).catch(()=>{});
+        }
+      };
+
+      // listen remote candidate additions
+      remoteCandidatesRef.on('child_added', snap=>{
+        const c = snap.val();
+        if(c) pc.addIceCandidate(new RTCIceCandidate(c)).catch(console.warn);
+      });
+
+      if(isInitiator){
+        // create offer
+        const offer = await pc.createOffer();
+        await pc.setLocalDescription(offer);
+        // set offer in db
+        await offerRef.set({ type: offer.type, sdp: offer.sdp, fromUid: meUid });
+        // listen for answer
+        answerRef.on('value', async snap => {
+          const data = snap.val();
+          if(data && data.sdp && !pc.remoteDescription) {
+            await pc.setRemoteDescription(new RTCSessionDescription(data)).catch(console.warn);
+          }
+        });
+      } else {
+        // wait for offer, then answer
+        offerRef.on('value', async snap => {
+          const data = snap.val();
+          if(data && data.sdp && !pc.remoteDescription){
+            await pc.setRemoteDescription(new RTCSessionDescription(data)).catch(console.warn);
+            const answer = await pc.createAnswer();
+            await pc.setLocalDescription(answer);
+            await answerRef.set({ type: answer.type, sdp: answer.sdp, fromUid: meUid });
+          }
+        });
+      }
+
+      // UI state
+      startBtn.disabled = true;
+      hangBtn.disabled = false;
+      nextBtn.disabled = false;
+      muteBtn.disabled = false;
+      camBtn.disabled = false;
+      waiting.style.display = 'none';
+      setStatus('Connected!');
+      playConnectSound();
+      startTimer();
+
+      // Watch call node; when removed -> hang up.
+      callRef.on('value', snap => {
+        const v = snap.val();
+        if(!v){
+          // call node removed -> remote hung up
+          hangUpCleanup();
+        }
+      });
+
+      // Save matched partner id (otherUid) to recentMatches to avoid immediate rematch
+      // We try to determine other uid by reading call structure (offer/answer) or by pair keys:
+      // best-effort: read call participants from callId components (callId contains two queue ids)
+      // but simplest reliable is to check offer/answer nodes after they appear.
+      // We'll watch offer/answer and store the other side's fromUid.
+      const storeOtherOnce = async () => {
+        // read offer/answer nodes
+        const offerSnap = await callRef.child('offer').once('value');
+        const ansSnap = await callRef.child('answer').once('value');
+        let otherUid = null;
+        if(offerSnap.exists()){
+          const o = offerSnap.val();
+          if(o && o.fromUid && o.fromUid !== meUid) otherUid = o.fromUid;
+        }
+        if(!otherUid && ansSnap.exists()){
+          const a = ansSnap.val();
+          if(a && a.fromUid && a.fromUid !== meUid) otherUid = a.fromUid;
+        }
+        if(otherUid && !recentMatches.includes(otherUid)){
+          recentMatches.push(otherUid);
+          // keep last 50
+          while(recentMatches.length > 50) recentMatches.shift();
+          localStorage.setItem(KEY_RECENT, JSON.stringify(recentMatches));
+          updateRecentUI();
+        }
+      };
+      // run after a small delay to allow offers/answers to be written
+      setTimeout(storeOtherOnce, 1500);
+    }
+
+    function playConnectSound(){
+      try{ const a = new Audio('https://www.myinstants.com/media/sounds/iphone-notification.mp3'); a.play().catch(()=>{}); }catch(e){}
+    }
+
+    // Hang up -> cleanup local peer, remove call node (if initiator) and local queue entries
+    async function hangUp(){
+      try{
+        if(callRef && isInitiator){
+          await db.ref('calls/'+callId).remove().catch(()=>{});
+        } else if(callRef){
+          // if not initiator, remove our candidate lists and leave call node (we don't necessarily remove whole node)
+          // To be simple: remove call node (both sides should handle gracefully)
+          await db.ref('calls/'+callId).remove().catch(()=>{});
+        }
+      }catch(e){ console.warn('hangUp remove', e); }
+      hangUpCleanup();
+    }
+
+    function hangUpCleanup(){
+      // stop pc
+      if(pc){
+        try{ pc.close(); }catch(e){}
+        pc = null;
+      }
+      // stop intervals
+      if(timerInterval){ clearInterval(timerInterval); timerInterval = null; }
+      localStream && (timerEl.textContent = 'Call Duration: 00:00');
+      // clear db listeners and refs
+      if(callRef){ callRef.off(); callRef = null; }
+      if(localCandidatesRef){ localCandidatesRef.off(); localCandidatesRef = null; }
+      if(remoteCandidatesRef){ remoteCandidatesRef.off(); remoteCandidatesRef = null; }
+      callId = null;
+      queueKey = null;
+      isInitiator = false;
+      startBtn.disabled = false;
+      hangBtn.disabled = true;
+      nextBtn.disabled = true;
+      muteBtn.disabled = true;
+      camBtn.disabled = true;
+      setStatus('Idle');
+      waiting.style.display = 'flex';
+    }
+
+    // timer
+    function startTimer(){
+      startTime = Date.now();
+      timerEl.textContent = 'Call Duration: 00:00';
+      timerInterval = setInterval(()=>{
+        const diff = Date.now() - startTime;
+        const m = String(Math.floor(diff/60000)).padStart(2,'0');
+        const s = String(Math.floor((diff%60000)/1000)).padStart(2,'0');
+        timerEl.textContent = `Call Duration: ${m}:${s}`;
+      },1000);
+    }
+
+    // UI handlers
+    startBtn.onclick = async ()=>{
+      // store name
+      localStorage.setItem(KEY_NAME, displayNameEl.value || '');
+      try {
+        await enterQueue();
+      } catch(e){ console.error('enterQueue failed', e); }
+    };
+
+    nextBtn.onclick = async ()=>{
+      // hang up then re-enter queue
+      await hangUp();
+      setTimeout(()=> startBtn.click(), 300);
+    };
+
+    hangBtn.onclick = hangUp;
+
+    muteBtn.onclick = ()=>{
+      if(!localStream) return;
+      const t = localStream.getAudioTracks()[0];
+      if(!t) return;
+      t.enabled = !t.enabled;
+      muteBtn.textContent = t.enabled ? 'Mute' : 'Unmute';
+    };
+    camBtn.onclick = ()=>{
+      if(!localStream) return;
+      const t = localStream.getVideoTracks()[0];
+      if(!t) return;
+      t.enabled = !t.enabled;
+      camBtn.textContent = t.enabled ? 'Cam Off' : 'Cam On';
+    };
+
+    // Clean up on unload
+    window.addEventListener('beforeunload', ()=>{
+      if(queueKey) db.ref('queue/'+queueKey).remove().catch(()=>{});
+      // do not abruptly remove call node here — let hangup flow handle it if possible
+    });
+
+    // Initial small status
+    setStatus('Idle');
+  })();
+  </script>
 </body>
 </html>
