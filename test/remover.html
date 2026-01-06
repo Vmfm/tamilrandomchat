@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Advanced Image BG Remover</title>
+<title>AI BG Remover</title>
 <style>
 body {
     font-family: Arial, sans-serif;
@@ -18,7 +18,7 @@ header {
     font-size: 1.5em;
 }
 .container {
-    max-width: 800px;
+    max-width: 900px;
     margin: auto;
     padding: 15px;
 }
@@ -35,10 +35,7 @@ button, input[type="color"], input[type="file"] {
     border-radius: 5px;
     cursor: pointer;
 }
-button {
-    background: #0d6efd;
-    color: white;
-}
+button { background: #0d6efd; color: #fff; }
 button:hover { background: #0954b3; }
 canvas { 
     display: block; 
@@ -50,6 +47,8 @@ canvas {
     width: 40px;
     height: 40px;
     padding: 0;
+    border-radius: 50%;
+    border: 2px solid #fff;
 }
 @media(max-width:600px){
     .controls { flex-direction: column; }
@@ -58,12 +57,12 @@ canvas {
 </head>
 <body>
 
-<header>🖼 Advanced BG Remover</header>
+<header>🖼 AI Background Remover</header>
 
 <div class="container">
     <div class="controls">
         <input type="file" id="upload" multiple accept="image/*">
-        <button onclick="removeBackground()">Remove BG</button>
+        <button onclick="processAll()">Remove BG</button>
         <input type="color" id="bgColor" value="#ffffff" title="Pick background color">
         <button onclick="applyColor()">Apply Color</button>
         <button onclick="downloadAll()">Download All</button>
@@ -81,13 +80,16 @@ canvas {
     <div id="canvasContainer"></div>
 </div>
 
+<!-- TensorFlow.js + BodyPix (U-2-Net style) -->
+<script src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs@4.9.0/dist/tf.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/@tensorflow-models/body-pix@2.2.0/dist/body-pix.min.js"></script>
+
 <script>
-// Store all images for batch
 let images = [];
 let canvases = [];
 
-// Upload images
-document.getElementById("upload").addEventListener("change", e => {
+const uploadInput = document.getElementById("upload");
+uploadInput.addEventListener("change", e => {
     const files = e.target.files;
     const container = document.getElementById("canvasContainer");
     container.innerHTML = "";
@@ -100,9 +102,9 @@ document.getElementById("upload").addEventListener("change", e => {
         reader.onload = () => {
             img.onload = () => {
                 const canvas = document.createElement("canvas");
-                const ctx = canvas.getContext("2d");
                 canvas.width = img.width;
                 canvas.height = img.height;
+                const ctx = canvas.getContext("2d");
                 ctx.drawImage(img,0,0);
                 container.appendChild(canvas);
                 images.push(img);
@@ -114,29 +116,41 @@ document.getElementById("upload").addEventListener("change", e => {
     });
 });
 
-// Simple AI-like background remover (color threshold + blur edge)
-function removeBackground() {
-    canvases.forEach(canvas => {
-        const ctx = canvas.getContext("2d");
-        let data = ctx.getImageData(0,0,canvas.width,canvas.height);
-        let d = data.data;
+// Load BodyPix model
+let net;
+async function loadModel() {
+    net = await bodyPix.load({architecture:'MobileNetV1', outputStride:16, multiplier:0.75});
+}
+loadModel();
 
-        // pick top-left pixel as background
-        let r0 = d[0], g0 = d[1], b0 = d[2];
-        for (let i=0; i<d.length; i+=4){
-            let r=d[i], g=d[i+1], b=d[i+2];
-            let diff = Math.abs(r-r0)+Math.abs(g-g0)+Math.abs(b-b0);
-            if(diff<100){ d[i+3]=0; } // transparency
-            else if(diff<150){ d[i+3]=180; } // semi-transparent edges
+// Process all images
+async function processAll(){
+    if(!net) { alert("Model still loading..."); return; }
+
+    for(let i=0;i<canvases.length;i++){
+        const canvas = canvases[i];
+        const ctx = canvas.getContext("2d");
+        const segmentation = await net.segmentPerson(canvas,{
+            internalResolution:'medium',
+            segmentationThreshold:0.7
+        });
+        const imgData = ctx.getImageData(0,0,canvas.width,canvas.height);
+        const d = imgData.data;
+
+        for(let y=0;y<canvas.height;y++){
+            for(let x=0;x<canvas.width;x++){
+                const n = y*canvas.width + x;
+                if(segmentation.data[n] === 0){ d[n*4 + 3]=0; } // make background transparent
+            }
         }
-        ctx.putImageData(data,0,0);
-    });
+        ctx.putImageData(imgData,0,0);
+    }
 }
 
 // Apply background color
 function applyColor(){
     const color = document.getElementById("bgColor").value;
-    canvases.forEach(canvas => {
+    canvases.forEach(canvas=>{
         const ctx = canvas.getContext("2d");
         ctx.globalCompositeOperation = "destination-over";
         ctx.fillStyle = color;
