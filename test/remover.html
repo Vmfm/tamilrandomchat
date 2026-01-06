@@ -2,108 +2,172 @@
 <html lang="en">
 <head>
 <meta charset="UTF-8">
-<title>Image Background Remover</title>
-<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Advanced Image BG Remover</title>
 <style>
 body {
     font-family: Arial, sans-serif;
-    background: #111;
+    margin: 0; padding: 0;
+    background: #1e1e1e;
     color: #fff;
-    text-align: center;
-    padding: 20px;
 }
-canvas {
-    max-width: 100%;
-    border: 2px dashed #555;
-    margin-top: 10px;
+header {
+    text-align: center;
+    padding: 15px;
+    background: #0d6efd;
+    font-size: 1.5em;
+}
+.container {
+    max-width: 800px;
+    margin: auto;
+    padding: 15px;
 }
 .controls {
-    margin-top: 15px;
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: center;
+    gap: 10px;
+    margin-bottom: 15px;
 }
-input, button {
+button, input[type="color"], input[type="file"] {
     padding: 10px;
-    margin: 5px;
+    border: none;
+    border-radius: 5px;
+    cursor: pointer;
 }
 button {
-    cursor: pointer;
     background: #0d6efd;
-    border: none;
     color: white;
-    border-radius: 5px;
+}
+button:hover { background: #0954b3; }
+canvas { 
+    display: block; 
+    margin: 15px auto; 
+    max-width: 100%;
+    border: 2px dashed #555;
+}
+.color-presets button {
+    width: 40px;
+    height: 40px;
+    padding: 0;
+}
+@media(max-width:600px){
+    .controls { flex-direction: column; }
 }
 </style>
 </head>
 <body>
 
-<h2>🖼 Image Background Remover</h2>
+<header>🖼 Advanced BG Remover</header>
 
-<input type="file" id="upload" accept="image/*">
+<div class="container">
+    <div class="controls">
+        <input type="file" id="upload" multiple accept="image/*">
+        <button onclick="removeBackground()">Remove BG</button>
+        <input type="color" id="bgColor" value="#ffffff" title="Pick background color">
+        <button onclick="applyColor()">Apply Color</button>
+        <button onclick="downloadAll()">Download All</button>
+    </div>
+    
+    <div class="color-presets controls">
+        <button style="background:#ffffff;" onclick="applyPreset('#ffffff')"></button>
+        <button style="background:#000000;" onclick="applyPreset('#000000')"></button>
+        <button style="background:#ff0000;" onclick="applyPreset('#ff0000')"></button>
+        <button style="background:#00ff00;" onclick="applyPreset('#00ff00')"></button>
+        <button style="background:#0000ff;" onclick="applyPreset('#0000ff')"></button>
+        <button style="background:linear-gradient(to right, red, yellow);" onclick="applyPresetGradient()"></button>
+    </div>
 
-<div class="controls">
-    <input type="color" id="bgColor" value="#ffffff">
-    <button onclick="applyColor()">Apply Color</button>
-    <button onclick="removeBg()">Remove Background</button>
-    <button onclick="download()">Download PNG</button>
+    <div id="canvasContainer"></div>
 </div>
 
-<canvas id="canvas"></canvas>
-
 <script>
-const upload = document.getElementById("upload");
-const canvas = document.getElementById("canvas");
-const ctx = canvas.getContext("2d");
-let img = new Image();
-let originalData;
+// Store all images for batch
+let images = [];
+let canvases = [];
 
-upload.onchange = e => {
-    const file = e.target.files[0];
-    if (!file) return;
+// Upload images
+document.getElementById("upload").addEventListener("change", e => {
+    const files = e.target.files;
+    const container = document.getElementById("canvasContainer");
+    container.innerHTML = "";
+    images = [];
+    canvases = [];
 
-    const reader = new FileReader();
-    reader.onload = () => {
-        img.onload = () => {
-            canvas.width = img.width;
-            canvas.height = img.height;
-            ctx.drawImage(img, 0, 0);
-            originalData = ctx.getImageData(0, 0, canvas.width, canvas.height);
+    Array.from(files).forEach(file => {
+        const reader = new FileReader();
+        const img = new Image();
+        reader.onload = () => {
+            img.onload = () => {
+                const canvas = document.createElement("canvas");
+                const ctx = canvas.getContext("2d");
+                canvas.width = img.width;
+                canvas.height = img.height;
+                ctx.drawImage(img,0,0);
+                container.appendChild(canvas);
+                images.push(img);
+                canvases.push(canvas);
+            };
+            img.src = reader.result;
         };
-        img.src = reader.result;
-    };
-    reader.readAsDataURL(file);
-};
+        reader.readAsDataURL(file);
+    });
+});
 
-function removeBg() {
-    if (!originalData) return;
+// Simple AI-like background remover (color threshold + blur edge)
+function removeBackground() {
+    canvases.forEach(canvas => {
+        const ctx = canvas.getContext("2d");
+        let data = ctx.getImageData(0,0,canvas.width,canvas.height);
+        let d = data.data;
 
-    let data = ctx.getImageData(0, 0, canvas.width, canvas.height);
-    let d = data.data;
-
-    let r0 = d[0], g0 = d[1], b0 = d[2];
-
-    for (let i = 0; i < d.length; i += 4) {
-        let r = d[i], g = d[i+1], b = d[i+2];
-        if (Math.abs(r - r0) < 40 &&
-            Math.abs(g - g0) < 40 &&
-            Math.abs(b - b0) < 40) {
-            d[i+3] = 0;
+        // pick top-left pixel as background
+        let r0 = d[0], g0 = d[1], b0 = d[2];
+        for (let i=0; i<d.length; i+=4){
+            let r=d[i], g=d[i+1], b=d[i+2];
+            let diff = Math.abs(r-r0)+Math.abs(g-g0)+Math.abs(b-b0);
+            if(diff<100){ d[i+3]=0; } // transparency
+            else if(diff<150){ d[i+3]=180; } // semi-transparent edges
         }
-    }
-    ctx.putImageData(data, 0, 0);
+        ctx.putImageData(data,0,0);
+    });
 }
 
-function applyColor() {
-    let color = document.getElementById("bgColor").value;
-    ctx.globalCompositeOperation = "destination-over";
-    ctx.fillStyle = color;
-    ctx.fillRect(0, 0, canvas.width, canvas.height);
-    ctx.globalCompositeOperation = "source-over";
+// Apply background color
+function applyColor(){
+    const color = document.getElementById("bgColor").value;
+    canvases.forEach(canvas => {
+        const ctx = canvas.getContext("2d");
+        ctx.globalCompositeOperation = "destination-over";
+        ctx.fillStyle = color;
+        ctx.fillRect(0,0,canvas.width,canvas.height);
+        ctx.globalCompositeOperation = "source-over";
+    });
 }
 
-function download() {
-    const link = document.createElement("a");
-    link.download = "image.png";
-    link.href = canvas.toDataURL("image/png");
-    link.click();
+// Preset colors
+function applyPreset(color){ document.getElementById("bgColor").value = color; applyColor(); }
+function applyPresetGradient(){
+    canvases.forEach(canvas=>{
+        const ctx = canvas.getContext("2d");
+        let grad = ctx.createLinearGradient(0,0,canvas.width,canvas.height);
+        grad.addColorStop(0,'red');
+        grad.addColorStop(1,'yellow');
+        ctx.globalCompositeOperation = "destination-over";
+        ctx.fillStyle = grad;
+        ctx.fillRect(0,0,canvas.width,canvas.height);
+        ctx.globalCompositeOperation = "source-over";
+    });
+}
+
+// Download all images
+function downloadAll(){
+    canvases.forEach((canvas,i)=>{
+        const link = document.createElement("a");
+        link.download = "image_"+(i+1)+".png";
+        link.href = canvas.toDataURL("image/png");
+        link.click();
+    });
 }
 </script>
 
