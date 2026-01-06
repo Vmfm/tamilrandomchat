@@ -1,0 +1,111 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>Image Background Remover</title>
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<style>
+body {
+    font-family: Arial, sans-serif;
+    background: #111;
+    color: #fff;
+    text-align: center;
+    padding: 20px;
+}
+canvas {
+    max-width: 100%;
+    border: 2px dashed #555;
+    margin-top: 10px;
+}
+.controls {
+    margin-top: 15px;
+}
+input, button {
+    padding: 10px;
+    margin: 5px;
+}
+button {
+    cursor: pointer;
+    background: #0d6efd;
+    border: none;
+    color: white;
+    border-radius: 5px;
+}
+</style>
+</head>
+<body>
+
+<h2>🖼 Image Background Remover</h2>
+
+<input type="file" id="upload" accept="image/*">
+
+<div class="controls">
+    <input type="color" id="bgColor" value="#ffffff">
+    <button onclick="applyColor()">Apply Color</button>
+    <button onclick="removeBg()">Remove Background</button>
+    <button onclick="download()">Download PNG</button>
+</div>
+
+<canvas id="canvas"></canvas>
+
+<script>
+const upload = document.getElementById("upload");
+const canvas = document.getElementById("canvas");
+const ctx = canvas.getContext("2d");
+let img = new Image();
+let originalData;
+
+upload.onchange = e => {
+    const file = e.target.files[0];
+    if (!file) return;
+
+    const reader = new FileReader();
+    reader.onload = () => {
+        img.onload = () => {
+            canvas.width = img.width;
+            canvas.height = img.height;
+            ctx.drawImage(img, 0, 0);
+            originalData = ctx.getImageData(0, 0, canvas.width, canvas.height);
+        };
+        img.src = reader.result;
+    };
+    reader.readAsDataURL(file);
+};
+
+function removeBg() {
+    if (!originalData) return;
+
+    let data = ctx.getImageData(0, 0, canvas.width, canvas.height);
+    let d = data.data;
+
+    let r0 = d[0], g0 = d[1], b0 = d[2];
+
+    for (let i = 0; i < d.length; i += 4) {
+        let r = d[i], g = d[i+1], b = d[i+2];
+        if (Math.abs(r - r0) < 40 &&
+            Math.abs(g - g0) < 40 &&
+            Math.abs(b - b0) < 40) {
+            d[i+3] = 0;
+        }
+    }
+    ctx.putImageData(data, 0, 0);
+}
+
+function applyColor() {
+    let color = document.getElementById("bgColor").value;
+    ctx.globalCompositeOperation = "destination-over";
+    ctx.fillStyle = color;
+    ctx.fillRect(0, 0, canvas.width, canvas.height);
+    ctx.globalCompositeOperation = "source-over";
+}
+
+function download() {
+    const link = document.createElement("a");
+    link.download = "image.png";
+    link.href = canvas.toDataURL("image/png");
+    link.click();
+}
+</script>
+
+</body>
+</html>
