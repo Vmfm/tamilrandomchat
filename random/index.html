@@ -1,0 +1,225 @@
+<!doctype html>
+<html>
+<head>
+<meta charset="utf-8">
+<title>Tamil VM Random Video</title>
+<meta name="viewport" content="width=device-width,initial-scale=1">
+
+<style>
+body { margin:0; background:#111; color:#fff; font-family:sans-serif }
+button,input,select { padding:10px; margin:5px }
+#loginScreen {
+  position:fixed; inset:0; background:#111;
+  display:flex; justify-content:center; align-items:center; z-index:999
+}
+#videoContainer {
+  position:relative; height:70vh; background:black
+}
+video { width:100%; height:100%; object-fit:cover }
+#localVideo {
+  position:absolute; top:10px; right:10px;
+  width:150px; height:110px; border:2px solid white
+}
+#partnerInfo {
+  position:absolute; bottom:10px; left:10px;
+  background:rgba(0,0,0,0.6); padding:8px; border-radius:6px
+}
+#waiting {
+  position:absolute; inset:0; background:rgba(0,0,0,0.7);
+  display:flex; justify-content:center; align-items:center
+}
+.controls { text-align:center; margin:10px }
+</style>
+
+<script src="https://www.gstatic.com/firebasejs/9.22.2/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/9.22.2/firebase-database-compat.js"></script>
+</head>
+
+<body>
+
+<!-- 🔐 LOGIN -->
+<div id="loginScreen">
+  <div>
+    <h2>Tamil VM Login</h2>
+    <input id="name" placeholder="Name"><br>
+    <input id="age" type="number" placeholder="Age"><br>
+
+    <select id="gender">
+      <option value="">Your Gender</option>
+      <option>Male</option>
+      <option>Female</option>
+    </select><br>
+
+    <select id="interest">
+      <option value="">Interested In</option>
+      <option>Male</option>
+      <option>Female</option>
+      <option>Any</option>
+    </select><br>
+
+    <button id="loginBtn">Continue</button>
+  </div>
+</div>
+
+<h3 align="center">🔥 Tamil VM Random Video</h3>
+
+<div id="videoContainer">
+  <video id="remoteVideo" autoplay></video>
+  <video id="localVideo" autoplay muted></video>
+  <div id="waiting">Waiting for partner...</div>
+  <div id="partnerInfo" style="display:none"></div>
+</div>
+
+<div class="controls">
+  <button id="startBtn">Find</button>
+  <button id="nextBtn" disabled>Next</button>
+  <button id="hangBtn" disabled>Hang</button>
+  <button id="reportBtn" disabled>🚨 Report</button>
+</div>
+
+<script>
+/* 🔥 FIREBASE */
+firebase.initializeApp({
+  apiKey: "AIzaSyAlWP5D79PsX29H0hIZlfvL0YV5Us7v5I4",
+  databaseURL: "https://sample-firebase-ai-app-1f408-default-rtdb.asia-southeast1.firebasedatabase.app"
+});
+const db = firebase.database();
+
+/* 🔐 LOGIN */
+const loginScreen = document.getElementById("loginScreen");
+let profile = JSON.parse(localStorage.getItem("vm_profile"));
+
+if (profile) loginScreen.style.display="none";
+
+loginBtn.onclick = () => {
+  profile = {
+    name:name.value,
+    age:age.value,
+    gender:gender.value,
+    interest:interest.value
+  };
+  if(!profile.name||!profile.age||!profile.gender||!profile.interest)
+    return alert("Fill all fields");
+
+  localStorage.setItem("vm_profile",JSON.stringify(profile));
+  loginScreen.style.display="none";
+};
+
+/* 🚫 BLOCK LIST */
+let blocked = JSON.parse(localStorage.getItem("vm_blocked")||"[]");
+
+/* 🔗 WEBRTC */
+const clientId="c_"+Math.random().toString(36).substr(2,9);
+let pc,callId,queueKey,partnerId;
+
+const ice={iceServers:[{urls:"stun:stun.l.google.com:19302"}]};
+
+async function getStream(){
+  const s=await navigator.mediaDevices.getUserMedia({video:true,audio:true});
+  localVideo.srcObject=s; return s;
+}
+
+/* 🚻 MATCH RULE */
+function matchAllowed(other){
+  if(blocked.includes(other.id)) return false;
+  if(profile.interest!=="Any" && other.profile.gender!==profile.interest) return false;
+  if(other.profile.interest!=="Any" && profile.gender!==other.profile.interest) return false;
+  return true;
+}
+
+/* 🎯 QUEUE */
+async function enterQueue(){
+  queueKey=db.ref("queue").push().key;
+  await db.ref("queue/"+queueKey).set({
+    id:clientId,
+    profile
+  });
+  watchQueue();
+}
+
+function watchQueue(){
+  db.ref("queue").on("child_added",snap=>{
+    if(snap.key===queueKey) return;
+    const other=snap.val();
+    if(!matchAllowed(other)) return;
+
+    callId="call_"+snap.key+"_"+queueKey;
+    partnerId=other.id;
+
+    db.ref("queue").remove();
+    startCall(true);
+  });
+}
+
+/* 📞 CALL */
+async function startCall(init){
+  const stream=await getStream();
+  pc=new RTCPeerConnection(ice);
+  stream.getTracks().forEach(t=>pc.addTrack(t,stream));
+
+  pc.ontrack=e=>remoteVideo.srcObject=e.streams[0];
+
+  const ref=db.ref("calls/"+callId);
+  ref.child("profiles/"+clientId).set(profile);
+
+  ref.child("profiles").on("value",s=>{
+    const p=s.val();
+    for(let k in p){
+      if(k!==clientId){
+        partnerInfo.innerHTML=
+          `${p[k].name} | ${p[k].age} | ${p[k].gender}`;
+        partnerInfo.style.display="block";
+      }
+    }
+  });
+
+  if(init){
+    const offer=await pc.createOffer();
+    await pc.setLocalDescription(offer);
+    ref.child("offer").set(offer);
+    ref.child("answer").on("value",async s=>{
+      if(s.val()) await pc.setRemoteDescription(s.val());
+    });
+  } else {
+    ref.child("offer").on("value",async s=>{
+      await pc.setRemoteDescription(s.val());
+      const ans=await pc.createAnswer();
+      await pc.setLocalDescription(ans);
+      ref.child("answer").set(ans);
+    });
+  }
+
+  startBtn.disabled=true;
+  nextBtn.disabled=false;
+  hangBtn.disabled=false;
+  reportBtn.disabled=false;
+  waiting.style.display="none";
+}
+
+/* 🚨 REPORT & BLOCK */
+reportBtn.onclick=()=>{
+  db.ref("reports").push({
+    reporter:clientId,
+    reported:partnerId,
+    time:Date.now()
+  });
+  blocked.push(partnerId);
+  localStorage.setItem("vm_blocked",JSON.stringify(blocked));
+  alert("User reported & blocked");
+  hangUp();
+};
+
+/* 🔚 HANG */
+function hangUp(){
+  if(pc) pc.close();
+  db.ref("calls/"+callId).remove();
+  location.reload();
+}
+
+startBtn.onclick=enterQueue;
+nextBtn.onclick=hangUp;
+hangBtn.onclick=hangUp;
+</script>
+
+</body>
+</html>
