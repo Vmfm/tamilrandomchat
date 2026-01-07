@@ -6,43 +6,35 @@
 
 <style>
 :root{
-  --bg:#111;--text:#fff;
-  --panel:#000;--btn:#2563eb
+  --bg:#111;--text:#fff;--panel:#000
 }
 body.light{
-  --bg:#f5f5f5;--text:#111;
-  --panel:#ddd
+  --bg:#f4f4f4;--text:#111;--panel:#ddd
 }
-body{
-  margin:0;font-family:sans-serif;
-  background:var(--bg);color:var(--text)
-}
+body{margin:0;font-family:sans-serif;background:var(--bg);color:var(--text)}
 
-/* LOGIN */
+/* 🔐 LOGIN */
 #loginScreen{
-  position:fixed;inset:0;
-  background:var(--bg);
-  display:flex;align-items:center;justify-content:center;
-  z-index:999
+  position:fixed;inset:0;background:var(--bg);
+  display:flex;align-items:center;justify-content:center;z-index:999
 }
-input,select,button{padding:10px;margin:6px;width:100%}
+input,select{padding:10px;margin:6px;width:100%}
 
-/* VIDEO */
+/* 🎥 VIDEO */
 #videoContainer{
   position:relative;
   height:70vh;
   background:var(--panel);
-  overflow:hidden
+  overflow:hidden;
 }
 video{width:100%;height:100%;object-fit:cover}
 #localVideo{
   position:absolute;top:10px;right:10px;
   width:140px;height:100px;
-  border:2px solid #fff;border-radius:6px;
-  z-index:3
+  border:2px solid #fff;border-radius:6px;z-index:3
 }
 
-/* WAIT */
+/* 🔄 WAITING */
 #waitingOverlay{
   position:absolute;inset:0;
   background:rgba(0,0,0,.7);
@@ -59,50 +51,57 @@ video{width:100%;height:100%;object-fit:cover}
 }
 @keyframes spin{to{transform:rotate(360deg)}}
 
-/* TOP ICONS */
+/* 🔘 SMALL ICON BUTTONS */
 .iconBtn{
-  position:absolute;top:10px;
+  position:absolute;
   background:rgba(0,0,0,.6);
-  border:none;color:#fff;
-  padding:6px 10px;border-radius:6px;
-  cursor:pointer;z-index:3
+  color:#fff;border:none;
+  padding:6px 8px;
+  border-radius:6px;
+  cursor:pointer;
+  font-size:14px;
+  z-index:3
 }
-#fullscreenBtn{left:10px;display:none}
-#themeBtn{left:60px}
+#fullscreenBtn{top:10px;left:10px;display:none}
+#muteBtn{top:10px;left:55px;display:none}
+#themeBtn{top:10px;left:100px}
 
-/* INFO */
+/* 👤 PARTNER INFO */
 #partnerInfo{
-  position:absolute;bottom:10px;left:10px;
+  position:absolute;
+  bottom:10px;left:10px;
   background:rgba(0,0,0,.6);
   padding:8px;border-radius:6px;
   display:none;z-index:3
 }
 
-/* CONTROLS */
+/* ⏱ TIMER */
+#timer{
+  text-align:center;
+  margin:6px;
+  font-size:14px;
+  display:none
+}
+
+/* 🎛 CONTROLS */
 .controls{
-  display:flex;flex-wrap:wrap;
+  display:flex;
   justify-content:center;
-  gap:10px;margin:10px
+  gap:10px;
+  margin:12px
 }
 button{
+  padding:10px 14px;
   border:none;border-radius:8px;
-  color:white;font-size:15px;
-  cursor:pointer;padding:10px 14px
+  font-size:15px;
+  cursor:pointer;
+  color:white
 }
 #findBtn{background:#10b981}
 #nextBtn{background:#3b82f6}
 #hangBtn{background:#ef4444}
 #camBtn{background:#f59e0b}
-#muteBtn{background:#8b5cf6}
-#reportBtn{background:#dc2626}
-
-/* TIMER */
-#timer{
-  text-align:center;
-  font-size:14px;
-  margin-bottom:8px;
-  display:none
-}
+button:disabled{opacity:.5}
 </style>
 
 <script src="https://www.gstatic.com/firebasejs/9.22.2/firebase-app-compat.js"></script>
@@ -111,10 +110,10 @@ button{
 
 <body>
 
-<!-- LOGIN -->
+<!-- 🔐 LOGIN -->
 <div id="loginScreen">
   <div style="width:300px">
-    <h3>Login</h3>
+    <h2>Login</h2>
     <input id="nameInput" placeholder="Name">
     <input id="ageInput" type="number" placeholder="Age">
 
@@ -131,7 +130,7 @@ button{
       <option>Any</option>
     </select>
 
-    <button id="loginBtn" style="background:#2563eb">Continue</button>
+    <button id="loginBtn" style="background:#2563eb;width:100%">Continue</button>
   </div>
 </div>
 
@@ -140,6 +139,7 @@ button{
   <video id="localVideo" autoplay muted playsinline></video>
 
   <button id="fullscreenBtn" class="iconBtn">🖵</button>
+  <button id="muteBtn" class="iconBtn">🔇</button>
   <button id="themeBtn" class="iconBtn">🌙</button>
 
   <div id="waitingOverlay">
@@ -157,19 +157,17 @@ button{
   <button id="nextBtn" disabled>Next</button>
   <button id="hangBtn" disabled>Hang Up</button>
   <button id="camBtn" disabled>Camera Off</button>
-  <button id="muteBtn" disabled>Mute</button>
-  <button id="reportBtn" disabled>🚨 Report & Block</button>
 </div>
 
 <script>
-/* FIREBASE */
+/* 🔥 FIREBASE */
 firebase.initializeApp({
   apiKey:"AIzaSyAlWP5D79PsX29H0hIZlfvL0YV5Us7v5I4",
   databaseURL:"https://sample-firebase-ai-app-1f408-default-rtdb.asia-southeast1.firebasedatabase.app"
 });
 const db=firebase.database();
 
-/* LOGIN */
+/* 🔐 LOGIN */
 let profile=JSON.parse(localStorage.getItem("vm_profile"));
 if(profile) loginScreen.style.display="none";
 
@@ -187,10 +185,7 @@ loginBtn.onclick=()=>{
   loginScreen.style.display="none";
 };
 
-/* BLOCK LIST */
-let blocked=JSON.parse(localStorage.getItem("vm_blocked")||"[]");
-
-/* CAMERA */
+/* 🎥 CAMERA */
 let localStream=null;
 async function startCamera(){
   if(localStream) return;
@@ -198,11 +193,7 @@ async function startCamera(){
   localVideo.srcObject=localStream;
 }
 
-/* MATCH */
-const clientId="c_"+Math.random().toString(36).substr(2,8);
-let queueRef=null,partnerId=null;
-
-/* TIMER */
+/* ⏱ TIMER */
 let timerInt,startTime;
 function startTimer(){
   timer.style.display="block";
@@ -215,6 +206,10 @@ function startTimer(){
   },1000);
 }
 
+/* 🔗 MATCH */
+const clientId="c_"+Math.random().toString(36).substr(2,8);
+let queueRef=null;
+
 findBtn.onclick=async()=>{
   await startCamera();
   waitingOverlay.style.display="flex";
@@ -225,65 +220,53 @@ findBtn.onclick=async()=>{
 
   db.ref("queue").on("child_added",snap=>{
     if(snap.key===queueRef.key) return;
-    if(blocked.includes(snap.val().id)) return;
 
-    partnerId=snap.val().id;
     waitingOverlay.style.display="none";
     fullscreenBtn.style.display="block";
+    muteBtn.style.display="block";
+    partnerInfo.style.display="block";
 
     partnerInfo.innerHTML=
       `👤 ${snap.val().profile.name}<br>
        🎂 ${snap.val().profile.age}<br>
        ⚧ ${snap.val().profile.gender}`;
-    partnerInfo.style.display="block";
 
     startTimer();
 
     nextBtn.disabled=false;
     hangBtn.disabled=false;
     camBtn.disabled=false;
-    muteBtn.disabled=false;
-    reportBtn.disabled=false;
 
     db.ref("queue/"+snap.key).remove();
     db.ref("queue/"+queueRef.key).remove();
   });
 };
 
-/* BUTTONS */
-camBtn.onclick=()=>{
-  const v=localStream.getVideoTracks()[0];
-  v.enabled=!v.enabled;
-  camBtn.textContent=v.enabled?"Camera Off":"Camera On";
-};
-
+/* 🔇 MUTE */
 muteBtn.onclick=()=>{
   const a=localStream.getAudioTracks()[0];
   a.enabled=!a.enabled;
-  muteBtn.textContent=a.enabled?"Mute":"Unmute";
+  muteBtn.textContent=a.enabled?"🔇":"🔊";
 };
 
+/* 🌙 THEME */
+themeBtn.onclick=()=>{
+  document.body.classList.toggle("light");
+  themeBtn.textContent=document.body.classList.contains("light")?"🌞":"🌙";
+};
+
+/* 🖵 FULLSCREEN */
 fullscreenBtn.onclick=()=>{
   if(!document.fullscreenElement)
     videoContainer.requestFullscreen();
   else document.exitFullscreen();
 };
 
-themeBtn.onclick=()=>{
-  document.body.classList.toggle("light");
-  themeBtn.textContent=document.body.classList.contains("light")?"🌞":"🌙";
-};
-
-reportBtn.onclick=()=>{
-  db.ref("reports").push({
-    reporter:clientId,
-    reported:partnerId,
-    time:Date.now()
-  });
-  blocked.push(partnerId);
-  localStorage.setItem("vm_blocked",JSON.stringify(blocked));
-  alert("User Reported & Blocked");
-  location.reload();
+/* 📷 CAMERA TOGGLE */
+camBtn.onclick=()=>{
+  const v=localStream.getVideoTracks()[0];
+  v.enabled=!v.enabled;
+  camBtn.textContent=v.enabled?"Camera Off":"Camera On";
 };
 
 hangBtn.onclick=()=>location.reload();
