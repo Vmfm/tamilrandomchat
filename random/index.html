@@ -2,77 +2,90 @@
 <html>
 <head>
 <meta charset="utf-8">
-<title>Tamil VM Random Video</title>
 <meta name="viewport" content="width=device-width,initial-scale=1">
 
 <style>
 body{margin:0;font-family:sans-serif;background:#111;color:#fff}
 
+/* 🔐 LOGIN */
 #loginScreen{
   position:fixed;inset:0;background:#111;
   display:flex;align-items:center;justify-content:center;z-index:999
 }
-input,select,button{padding:10px;margin:5px;width:100%}
+input,select{padding:10px;margin:6px;width:100%}
 
+/* 🎥 VIDEO */
 #videoContainer{
   position:relative;
   height:70vh;
   background:black;
   overflow:hidden;
 }
-
-video{
-  width:100%;
-  height:100%;
-  object-fit:cover;
-}
-
+video{width:100%;height:100%;object-fit:cover}
 #localVideo{
-  position:absolute;
-  top:10px;right:10px;
-  width:150px;height:110px;
-  border:2px solid white;
-  z-index:2;
+  position:absolute;top:10px;right:10px;
+  width:140px;height:100px;
+  border:2px solid #fff;border-radius:6px;z-index:3
 }
 
-/* 🔄 Waiting Overlay */
+/* 🔄 WAITING */
 #waitingOverlay{
-  position:absolute;
-  inset:0;
-  background:rgba(0,0,0,0.7);
-  display:flex;
-  flex-direction:column;
-  align-items:center;
-  justify-content:center;
-  gap:10px;
-  z-index:1;
+  position:absolute;inset:0;
+  background:rgba(0,0,0,.7);
+  display:flex;flex-direction:column;
+  align-items:center;justify-content:center;
+  z-index:2
 }
-
 .spinner{
   width:40px;height:40px;
   border:5px solid #777;
   border-top:5px solid #fff;
   border-radius:50%;
-  animation:spin 1s linear infinite;
+  animation:spin 1s linear infinite
+}
+@keyframes spin{to{transform:rotate(360deg)}}
+
+/* 🖵 FULLSCREEN ICON */
+#fullscreenBtn{
+  position:absolute;
+  top:10px;left:10px;
+  background:rgba(0,0,0,.6);
+  color:#fff;border:none;
+  padding:6px 10px;
+  border-radius:6px;
+  cursor:pointer;
+  z-index:3;
+  display:none;
 }
 
-@keyframes spin{
-  0%{transform:rotate(0deg)}
-  100%{transform:rotate(360deg)}
-}
-
+/* 👤 PARTNER INFO */
 #partnerInfo{
   position:absolute;
   bottom:10px;left:10px;
   background:rgba(0,0,0,.6);
-  padding:8px;
-  border-radius:6px;
-  display:none;
-  z-index:2;
+  padding:8px;border-radius:6px;
+  display:none;z-index:3
 }
 
-.controls{text-align:center;margin:10px}
-button{cursor:pointer}
+/* 🎛 CONTROLS */
+.controls{
+  display:flex;
+  justify-content:center;
+  gap:10px;
+  margin:12px
+}
+button{
+  padding:10px 14px;
+  border:none;border-radius:8px;
+  font-size:15px;
+  cursor:pointer;
+  color:white
+}
+#findBtn{background:#10b981}
+#nextBtn{background:#3b82f6}
+#hangBtn{background:#ef4444}
+#camBtn{background:#f59e0b}
+button:disabled{opacity:.5}
 </style>
 
 <script src="https://www.gstatic.com/firebasejs/9.22.2/firebase-app-compat.js"></script>
@@ -84,34 +97,33 @@ button{cursor:pointer}
 <!-- 🔐 LOGIN -->
 <div id="loginScreen">
   <div style="width:300px">
-    <h2>Tamil VM Login</h2>
+    <h2>Login</h2>
     <input id="nameInput" placeholder="Name">
     <input id="ageInput" type="number" placeholder="Age">
 
     <select id="genderInput">
       <option value="">Your Gender</option>
-      <option value="Male">Male</option>
-      <option value="Female">Female</option>
+      <option>Male</option>
+      <option>Female</option>
     </select>
 
     <select id="interestInput">
       <option value="">Interested In</option>
-      <option value="Male">Male</option>
-      <option value="Female">Female</option>
-      <option value="Any">Any</option>
+      <option>Male</option>
+      <option>Female</option>
+      <option>Any</option>
     </select>
 
-    <button id="loginBtn">Continue</button>
+    <button id="loginBtn" style="background:#2563eb;width:100%">Continue</button>
   </div>
 </div>
-
-<h3 align="center">🔥 Tamil VM Random Video</h3>
 
 <div id="videoContainer">
   <video id="remoteVideo" autoplay playsinline></video>
   <video id="localVideo" autoplay muted playsinline></video>
 
-  <!-- 🔄 Waiting Overlay -->
+  <button id="fullscreenBtn">🖵</button>
+
   <div id="waitingOverlay">
     <div class="spinner"></div>
     <div>Waiting for partner...</div>
@@ -121,9 +133,10 @@ button{cursor:pointer}
 </div>
 
 <div class="controls">
-  <button id="startBtn">Find Partner</button>
+  <button id="findBtn">Find</button>
+  <button id="nextBtn" disabled>Next</button>
   <button id="hangBtn" disabled>Hang Up</button>
-  <button id="fullscreenBtn" disabled>🖵 Fullscreen</button>
+  <button id="camBtn" disabled>Camera Off</button>
 </div>
 
 <script>
@@ -136,11 +149,6 @@ const db=firebase.database();
 
 /* 🔐 LOGIN */
 const loginScreen=document.getElementById("loginScreen");
-const nameInput=document.getElementById("nameInput");
-const ageInput=document.getElementById("ageInput");
-const genderInput=document.getElementById("genderInput");
-const interestInput=document.getElementById("interestInput");
-
 let profile=JSON.parse(localStorage.getItem("vm_profile"));
 if(profile) loginScreen.style.display="none";
 
@@ -166,21 +174,38 @@ async function startCamera(){
   localVideo.srcObject=localStream;
 }
 
-/* 📞 MATCH (DEMO SIMPLE CONNECT) */
-startBtn.onclick=async()=>{
-  await startCamera();           // ✅ camera opens here
-  waitingOverlay.style.display="flex";
-  setTimeout(connectDemo,3000);  // demo partner connect
-};
+/* 🔗 SIMPLE REAL MATCH (NO SELF CONNECT) */
+const clientId="c_"+Math.random().toString(36).substr(2,8);
+let queueRef=null;
 
-function connectDemo(){
-  remoteVideo.srcObject=localStream; // demo loopback
-  waitingOverlay.style.display="none";
-  partnerInfo.innerHTML="👤 Partner<br>🎂 25<br>⚧ Female";
-  partnerInfo.style.display="block";
-  hangBtn.disabled=false;
-  fullscreenBtn.disabled=false;
-}
+findBtn.onclick=async()=>{
+  await startCamera();
+  waitingOverlay.style.display="flex";
+
+  queueRef=db.ref("queue").push();
+  await queueRef.set({id:clientId,profile});
+  queueRef.onDisconnect().remove();
+
+  db.ref("queue").on("child_added",snap=>{
+    if(snap.key===queueRef.key) return;
+
+    // ✅ real partner found
+    waitingOverlay.style.display="none";
+    fullscreenBtn.style.display="block";
+    partnerInfo.style.display="block";
+    partnerInfo.innerHTML=
+      `👤 ${snap.val().profile.name}<br>
+       🎂 ${snap.val().profile.age}<br>
+       ⚧ ${snap.val().profile.gender}`;
+
+    nextBtn.disabled=false;
+    hangBtn.disabled=false;
+    camBtn.disabled=false;
+
+    db.ref("queue/"+snap.key).remove();
+    db.ref("queue/"+queueRef.key).remove();
+  });
+};
 
 /* 🖵 FULLSCREEN */
 fullscreenBtn.onclick=()=>{
@@ -191,7 +216,15 @@ fullscreenBtn.onclick=()=>{
   }
 };
 
+/* 📷 CAMERA TOGGLE */
+camBtn.onclick=()=>{
+  const v=localStream.getVideoTracks()[0];
+  v.enabled=!v.enabled;
+  camBtn.textContent=v.enabled?"Camera Off":"Camera On";
+};
+
 hangBtn.onclick=()=>location.reload();
+nextBtn.onclick=()=>location.reload();
 </script>
 
 </body>
