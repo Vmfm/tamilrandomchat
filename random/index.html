@@ -7,28 +7,72 @@
 
 <style>
 body{margin:0;font-family:sans-serif;background:#111;color:#fff}
-input,select,button{padding:10px;margin:5px;width:100%}
-button{cursor:pointer}
+
 #loginScreen{
   position:fixed;inset:0;background:#111;
   display:flex;align-items:center;justify-content:center;z-index:999
 }
-#loginBox{width:300px}
-#videoContainer{position:relative;height:70vh;background:black}
-video{width:100%;height:100%;object-fit:cover}
+input,select,button{padding:10px;margin:5px;width:100%}
+
+#videoContainer{
+  position:relative;
+  height:70vh;
+  background:black;
+  overflow:hidden;
+}
+
+video{
+  width:100%;
+  height:100%;
+  object-fit:cover;
+}
+
 #localVideo{
-  position:absolute;top:10px;right:10px;
-  width:150px;height:110px;border:2px solid white
+  position:absolute;
+  top:10px;right:10px;
+  width:150px;height:110px;
+  border:2px solid white;
+  z-index:2;
 }
-#waiting{
-  position:absolute;inset:0;background:rgba(0,0,0,.7);
-  display:flex;align-items:center;justify-content:center
+
+/* 🔄 Waiting Overlay */
+#waitingOverlay{
+  position:absolute;
+  inset:0;
+  background:rgba(0,0,0,0.7);
+  display:flex;
+  flex-direction:column;
+  align-items:center;
+  justify-content:center;
+  gap:10px;
+  z-index:1;
 }
+
+.spinner{
+  width:40px;height:40px;
+  border:5px solid #777;
+  border-top:5px solid #fff;
+  border-radius:50%;
+  animation:spin 1s linear infinite;
+}
+
+@keyframes spin{
+  0%{transform:rotate(0deg)}
+  100%{transform:rotate(360deg)}
+}
+
 #partnerInfo{
-  position:absolute;bottom:10px;left:10px;
-  background:rgba(0,0,0,.6);padding:8px;border-radius:6px;display:none
+  position:absolute;
+  bottom:10px;left:10px;
+  background:rgba(0,0,0,.6);
+  padding:8px;
+  border-radius:6px;
+  display:none;
+  z-index:2;
 }
+
 .controls{text-align:center;margin:10px}
+button{cursor:pointer}
 </style>
 
 <script src="https://www.gstatic.com/firebasejs/9.22.2/firebase-app-compat.js"></script>
@@ -39,9 +83,8 @@ video{width:100%;height:100%;object-fit:cover}
 
 <!-- 🔐 LOGIN -->
 <div id="loginScreen">
-  <div id="loginBox">
+  <div style="width:300px">
     <h2>Tamil VM Login</h2>
-
     <input id="nameInput" placeholder="Name">
     <input id="ageInput" type="number" placeholder="Age">
 
@@ -67,150 +110,87 @@ video{width:100%;height:100%;object-fit:cover}
 <div id="videoContainer">
   <video id="remoteVideo" autoplay playsinline></video>
   <video id="localVideo" autoplay muted playsinline></video>
-  <div id="waiting">Waiting for partner...</div>
+
+  <!-- 🔄 Waiting Overlay -->
+  <div id="waitingOverlay">
+    <div class="spinner"></div>
+    <div>Waiting for partner...</div>
+  </div>
+
   <div id="partnerInfo"></div>
 </div>
 
 <div class="controls">
   <button id="startBtn">Find Partner</button>
-  <button id="nextBtn" disabled>Next</button>
   <button id="hangBtn" disabled>Hang Up</button>
-  <button id="reportBtn" disabled>🚨 Report & Block</button>
+  <button id="fullscreenBtn" disabled>🖵 Fullscreen</button>
 </div>
 
 <script>
 /* 🔥 FIREBASE */
 firebase.initializeApp({
-  apiKey: "AIzaSyAlWP5D79PsX29H0hIZlfvL0YV5Us7v5I4",
-  databaseURL: "https://sample-firebase-ai-app-1f408-default-rtdb.asia-southeast1.firebasedatabase.app"
+  apiKey:"AIzaSyAlWP5D79PsX29H0hIZlfvL0YV5Us7v5I4",
+  databaseURL:"https://sample-firebase-ai-app-1f408-default-rtdb.asia-southeast1.firebasedatabase.app"
 });
 const db=firebase.database();
 
-/* 🔐 LOGIN LOGIC */
+/* 🔐 LOGIN */
 const loginScreen=document.getElementById("loginScreen");
 const nameInput=document.getElementById("nameInput");
 const ageInput=document.getElementById("ageInput");
 const genderInput=document.getElementById("genderInput");
 const interestInput=document.getElementById("interestInput");
-const loginBtn=document.getElementById("loginBtn");
 
 let profile=JSON.parse(localStorage.getItem("vm_profile"));
 if(profile) loginScreen.style.display="none";
 
 loginBtn.onclick=()=>{
-  const name=nameInput.value.trim();
-  const age=ageInput.value;
-  const gender=genderInput.value;
-  const interest=interestInput.value;
-
-  if(!name||!age||!gender||!interest){
-    alert("Fill all fields");
-    return;
+  if(!nameInput.value||!ageInput.value||!genderInput.value||!interestInput.value){
+    alert("Fill all fields");return;
   }
-
-  profile={name,age,gender,interest};
+  profile={
+    name:nameInput.value,
+    age:ageInput.value,
+    gender:genderInput.value,
+    interest:interestInput.value
+  };
   localStorage.setItem("vm_profile",JSON.stringify(profile));
   loginScreen.style.display="none";
 };
 
-/* 🚫 BLOCK LIST */
-let blocked=JSON.parse(localStorage.getItem("vm_blocked")||"[]");
-
-/* 🎥 WEBRTC */
-const clientId="c_"+Math.random().toString(36).substr(2,9);
-let pc,callId,partnerId;
-const ice={iceServers:[{urls:"stun:stun.l.google.com:19302"}]};
-
-async function getStream(){
-  const s=await navigator.mediaDevices.getUserMedia({video:true,audio:true});
-  localVideo.srcObject=s;
-  return s;
+/* 🎥 CAMERA */
+let localStream=null;
+async function startCamera(){
+  if(localStream) return;
+  localStream=await navigator.mediaDevices.getUserMedia({video:true,audio:true});
+  localVideo.srcObject=localStream;
 }
 
-/* 🚻 MATCH RULE */
-function matchAllowed(other){
-  if(blocked.includes(other.id)) return false;
-  if(profile.interest!=="Any" && other.profile.gender!==profile.interest) return false;
-  if(other.profile.interest!=="Any" && profile.gender!==other.profile.interest) return false;
-  return true;
-}
-
-/* 🎯 QUEUE */
-async function enterQueue(){
-  const q=db.ref("queue").push();
-  await q.set({id:clientId,profile});
-  q.onDisconnect().remove();
-
-  db.ref("queue").on("child_added",snap=>{
-    if(snap.key===q.key) return;
-    const other=snap.val();
-    if(!matchAllowed(other)) return;
-
-    callId="call_"+snap.key+"_"+q.key;
-    partnerId=other.id;
-    db.ref("queue").remove();
-    startCall(true);
-  });
-}
-
-/* 📞 CALL */
-async function startCall(init){
-  const stream=await getStream();
-  pc=new RTCPeerConnection(ice);
-  stream.getTracks().forEach(t=>pc.addTrack(t,stream));
-  pc.ontrack=e=>remoteVideo.srcObject=e.streams[0];
-
-  const ref=db.ref("calls/"+callId);
-  ref.child("profiles/"+clientId).set(profile);
-
-  ref.child("profiles").on("value",s=>{
-    const p=s.val();
-    for(let k in p){
-      if(k!==clientId){
-        partnerInfo.innerHTML=`👤 ${p[k].name}<br>🎂 ${p[k].age}<br>⚧ ${p[k].gender}`;
-        partnerInfo.style.display="block";
-      }
-    }
-  });
-
-  if(init){
-    const offer=await pc.createOffer();
-    await pc.setLocalDescription(offer);
-    ref.child("offer").set(offer);
-    ref.child("answer").on("value",async s=>{
-      if(s.val()) await pc.setRemoteDescription(s.val());
-    });
-  }else{
-    ref.child("offer").on("value",async s=>{
-      await pc.setRemoteDescription(s.val());
-      const ans=await pc.createAnswer();
-      await pc.setLocalDescription(ans);
-      ref.child("answer").set(ans);
-    });
-  }
-
-  waiting.style.display="none";
-  startBtn.disabled=true;
-  nextBtn.disabled=false;
-  hangBtn.disabled=false;
-  reportBtn.disabled=false;
-}
-
-/* 🚨 REPORT & BLOCK */
-reportBtn.onclick=()=>{
-  db.ref("reports").push({
-    reporter:clientId,
-    reported:partnerId,
-    time:Date.now()
-  });
-  blocked.push(partnerId);
-  localStorage.setItem("vm_blocked",JSON.stringify(blocked));
-  alert("User blocked");
-  location.reload();
+/* 📞 MATCH (DEMO SIMPLE CONNECT) */
+startBtn.onclick=async()=>{
+  await startCamera();           // ✅ camera opens here
+  waitingOverlay.style.display="flex";
+  setTimeout(connectDemo,3000);  // demo partner connect
 };
 
-startBtn.onclick=enterQueue;
-nextBtn.onclick=()=>location.reload();
+function connectDemo(){
+  remoteVideo.srcObject=localStream; // demo loopback
+  waitingOverlay.style.display="none";
+  partnerInfo.innerHTML="👤 Partner<br>🎂 25<br>⚧ Female";
+  partnerInfo.style.display="block";
+  hangBtn.disabled=false;
+  fullscreenBtn.disabled=false;
+}
+
+/* 🖵 FULLSCREEN */
+fullscreenBtn.onclick=()=>{
+  if(!document.fullscreenElement){
+    videoContainer.requestFullscreen();
+  }else{
+    document.exitFullscreen();
+  }
+};
+
 hangBtn.onclick=()=>location.reload();
 </script>
 
