@@ -7,30 +7,112 @@
 
 <style>
 body{font-family:sans-serif;background:#111;color:#eee;margin:0}
-#videoContainer{position:relative;height:70vh;background:#000}
-#remoteVideo{width:100%;height:100%;object-fit:cover}
-#localVideo{position:absolute;top:10px;right:10px;width:160px;height:120px;border:2px solid #fff;border-radius:8px}
 
-#waitingOverlay{position:absolute;inset:0;background:#000b;display:flex;align-items:center;justify-content:center;flex-direction:column}
-.spinner{width:40px;height:40px;border:5px solid #999;border-top:5px solid #fff;border-radius:50%;animation:spin 1s linear infinite}
+#videoContainer{
+ position:relative;
+ height:70vh;
+ background:#000;
+}
+
+#remoteVideo{
+ width:100%;
+ height:100%;
+ object-fit:cover;
+}
+
+#localVideo{
+ position:absolute;
+ top:12px;
+ right:12px;
+ width:180px;
+ height:240px;
+ object-fit:cover;
+ border:2px solid #fff;
+ border-radius:10px;
+ background:#000;
+}
+
+#waitingOverlay{
+ position:absolute;
+ inset:0;
+ background:#000b;
+ display:flex;
+ align-items:center;
+ justify-content:center;
+ flex-direction:column;
+ gap:12px;
+}
+
+.spinner{
+ width:40px;
+ height:40px;
+ border:5px solid #777;
+ border-top:5px solid #fff;
+ border-radius:50%;
+ animation:spin 1s linear infinite;
+ display:none;
+}
+
 @keyframes spin{to{transform:rotate(360deg)}}
 
-.controls{text-align:center;margin:10px}
-button{padding:8px 12px;margin:4px;border:none;border-radius:6px;color:#fff;cursor:pointer}
+.controls{text-align:center;margin:12px}
+button{
+ padding:8px 14px;
+ margin:4px;
+ border:none;
+ border-radius:6px;
+ color:#fff;
+ cursor:pointer;
+ font-size:15px;
+}
 #startBtn{background:#2563eb}
 #nextBtn{background:#10b981}
 #hangBtn{background:#ef4444}
 #muteBtn{background:#f59e0b}
 #camBtn{background:#8b5cf6}
-#reportBtn{background:#dc2626}
-#blockBtn{background:#6b7280}
 
-#loginBox{position:fixed;inset:0;background:#000c;display:none;align-items:center;justify-content:center;z-index:10}
-#loginBox form{background:#222;padding:20px;border-radius:10px;width:280px}
-#loginBox input,#loginBox select{width:100%;padding:8px;margin:6px 0;border-radius:5px;border:none}
+#loginBox{
+ position:fixed;
+ inset:0;
+ background:#000c;
+ display:none;
+ align-items:center;
+ justify-content:center;
+ z-index:10;
+}
+#loginBox form{
+ background:#222;
+ padding:20px;
+ border-radius:10px;
+ width:280px;
+}
+#loginBox input,#loginBox select{
+ width:100%;
+ padding:8px;
+ margin:6px 0;
+ border-radius:5px;
+ border:none;
+}
 
-#partnerInfo{position:absolute;bottom:10px;left:10px;background:#000a;padding:6px 10px;border-radius:6px;font-size:13px}
-#timer{position:absolute;top:10px;left:10px;background:#000a;padding:5px 8px;border-radius:6px;font-size:13px}
+#partnerInfo{
+ position:absolute;
+ bottom:10px;
+ left:10px;
+ background:#000a;
+ padding:6px 10px;
+ border-radius:6px;
+ font-size:13px;
+}
+
+#timer{
+ position:absolute;
+ top:10px;
+ left:10px;
+ background:#000a;
+ padding:5px 8px;
+ border-radius:6px;
+ font-size:13px;
+}
 </style>
 
 <script src="https://www.gstatic.com/firebasejs/9.22.2/firebase-app-compat.js"></script>
@@ -65,8 +147,8 @@ button{padding:8px 12px;margin:4px;border:none;border-radius:6px;color:#fff;curs
 <div id="partnerInfo"></div>
 
 <div id="waitingOverlay">
-<div class="spinner"></div>
-<div>Waiting for partner...</div>
+<div class="spinner" id="spinner"></div>
+<div id="waitingText">Press Find to start</div>
 </div>
 </div>
 
@@ -76,8 +158,6 @@ button{padding:8px 12px;margin:4px;border:none;border-radius:6px;color:#fff;curs
 <button id="hangBtn" disabled>Hang</button>
 <button id="muteBtn" disabled>Mute</button>
 <button id="camBtn" disabled>Camera</button>
-<button id="reportBtn" disabled>Report</button>
-<button id="blockBtn" disabled>Block</button>
 </div>
 
 <script>
@@ -85,9 +165,6 @@ button{padding:8px 12px;margin:4px;border:none;border-radius:6px;color:#fff;curs
 
 /* ---------- LOGIN ---------- */
 let user = JSON.parse(localStorage.getItem("vmUser"));
-let blocked = JSON.parse(localStorage.getItem("vmBlocked")||"[]");
-const loginBox=document.getElementById("loginBox");
-
 if(!user){
  loginBox.style.display="flex";
  loginForm.onsubmit=e=>{
@@ -114,19 +191,19 @@ const db=firebase.database();
 const localVideo=document.getElementById("localVideo");
 const remoteVideo=document.getElementById("remoteVideo");
 const overlay=document.getElementById("waitingOverlay");
-const partnerInfo=document.getElementById("partnerInfo");
+const spinner=document.getElementById("spinner");
+const waitText=document.getElementById("waitingText");
 const timerEl=document.getElementById("timer");
+const partnerInfo=document.getElementById("partnerInfo");
 
 const startBtn=document.getElementById("startBtn");
 const nextBtn=document.getElementById("nextBtn");
 const hangBtn=document.getElementById("hangBtn");
 const muteBtn=document.getElementById("muteBtn");
 const camBtn=document.getElementById("camBtn");
-const reportBtn=document.getElementById("reportBtn");
-const blockBtn=document.getElementById("blockBtn");
 
 /* ---------- STATE ---------- */
-let pc,stream,queueKey,callId,isInit,partnerUser;
+let pc,stream,queueKey,callId,isInit;
 let startTime,timerInt;
 const clientId="c_"+Math.random().toString(36).slice(2,8);
 const ice={iceServers:[{urls:"stun:stun.l.google.com:19302"}]};
@@ -134,7 +211,10 @@ const ice={iceServers:[{urls:"stun:stun.l.google.com:19302"}]};
 /* ---------- MEDIA ---------- */
 async function media(){
  if(stream) return;
- stream=await navigator.mediaDevices.getUserMedia({video:true,audio:true});
+ stream=await navigator.mediaDevices.getUserMedia({
+  video:{width:{ideal:1280},height:{ideal:720}},
+  audio:true
+ });
  localVideo.srcObject=stream;
 }
 
@@ -155,16 +235,17 @@ function stopTimer(){
 
 /* ---------- QUEUE ---------- */
 async function join(){
+ spinner.style.display="block";
+ waitText.textContent="Waiting for partner...";
  await media();
+
  const q=db.ref("queue").push();
  queueKey=q.key;
  q.set({...user,id:clientId,ts:Date.now()});
  q.onDisconnect().remove();
- overlay.style.display="flex";
 
  db.ref("queue").on("child_added",snap=>{
   if(snap.key===queueKey) return;
-  if(blocked.includes(snap.val().id)) return;
   const pair=db.ref("pairs/"+snap.key);
   pair.transaction(c=>!c?{a:snap.key,b:queueKey,aUser:snap.val(),bUser:user}:undefined,
    (e,ok,s)=>{
@@ -187,7 +268,6 @@ async function join(){
 
 /* ---------- CALL ---------- */
 async function startCall(p){
- partnerUser=p;
  overlay.style.display="none";
  partnerInfo.textContent=`${p.name}, ${p.age}, ${p.gender}`;
  startTimer();
@@ -219,30 +299,21 @@ async function startCall(p){
  }
 
  startBtn.disabled=true;
- nextBtn.disabled=hangBtn.disabled=muteBtn.disabled=camBtn.disabled=reportBtn.disabled=blockBtn.disabled=false;
+ nextBtn.disabled=hangBtn.disabled=muteBtn.disabled=camBtn.disabled=false;
 }
 
 /* ---------- ACTIONS ---------- */
 async function hang(){
  if(pc) pc.close();
  if(callId) db.ref("calls/"+callId).remove();
- callId=null;partnerUser=null;
+ callId=null;
  stopTimer();
- overlay.style.display="flex";
  partnerInfo.textContent="";
+ overlay.style.display="flex";
+ spinner.style.display="none";
+ waitText.textContent="Press Find to start";
  startBtn.disabled=false;
 }
-
-reportBtn.onclick=()=>{
- db.ref("reports").push({from:clientId,against:partnerUser.id,time:Date.now()});
- alert("Reported");
-};
-
-blockBtn.onclick=()=>{
- blocked.push(partnerUser.id);
- localStorage.setItem("vmBlocked",JSON.stringify(blocked));
- hang();
-};
 
 startBtn.onclick=join;
 hangBtn.onclick=hang;
