@@ -1,9 +1,9 @@
 <!doctype html>
 <html>
 <head>
-<meta charset="utf-8" />
+<meta charset="utf-8">
 <title>Random Video Chat - Tamil VM</title>
-<meta name="viewport" content="width=device-width,initial-scale=1" />
+<meta name="viewport" content="width=device-width,initial-scale=1">
 
 <style>
 body{font-family:sans-serif;background:#111;color:#eee;margin:0}
@@ -11,11 +11,7 @@ body{font-family:sans-serif;background:#111;color:#eee;margin:0}
 #remoteVideo{width:100%;height:100%;object-fit:cover}
 #localVideo{position:absolute;top:10px;right:10px;width:160px;height:120px;border:2px solid #fff;border-radius:8px}
 
-#waitingOverlay{
-  position:absolute;inset:0;background:#000b;
-  display:flex;align-items:center;justify-content:center;flex-direction:column
-}
-
+#waitingOverlay{position:absolute;inset:0;background:#000b;display:flex;align-items:center;justify-content:center;flex-direction:column}
 .spinner{width:40px;height:40px;border:5px solid #999;border-top:5px solid #fff;border-radius:50%;animation:spin 1s linear infinite}
 @keyframes spin{to{transform:rotate(360deg)}}
 
@@ -26,24 +22,15 @@ button{padding:8px 12px;margin:4px;border:none;border-radius:6px;color:#fff;curs
 #hangBtn{background:#ef4444}
 #muteBtn{background:#f59e0b}
 #camBtn{background:#8b5cf6}
+#reportBtn{background:#dc2626}
+#blockBtn{background:#6b7280}
 
-#loginBox{
-  position:fixed;inset:0;background:#000c;
-  display:none;align-items:center;justify-content:center;z-index:10
-}
-#loginBox form{
-  background:#222;padding:20px;border-radius:10px;width:280px
-}
-#loginBox input,#loginBox select{
-  width:100%;padding:8px;margin:6px 0;border-radius:5px;border:none
-}
-#loginBox button{width:100%;padding:10px;background:#2563eb}
+#loginBox{position:fixed;inset:0;background:#000c;display:none;align-items:center;justify-content:center;z-index:10}
+#loginBox form{background:#222;padding:20px;border-radius:10px;width:280px}
+#loginBox input,#loginBox select{width:100%;padding:8px;margin:6px 0;border-radius:5px;border:none}
 
-#userInfo{text-align:center;font-size:14px;color:#aaa}
-#partnerInfo{
-  position:absolute;bottom:10px;left:10px;
-  background:#000a;padding:6px 10px;border-radius:6px;font-size:13px
-}
+#partnerInfo{position:absolute;bottom:10px;left:10px;background:#000a;padding:6px 10px;border-radius:6px;font-size:13px}
+#timer{position:absolute;top:10px;left:10px;background:#000a;padding:5px 8px;border-radius:6px;font-size:13px}
 </style>
 
 <script src="https://www.gstatic.com/firebasejs/9.22.2/firebase-app-compat.js"></script>
@@ -54,183 +41,214 @@ button{padding:8px 12px;margin:4px;border:none;border-radius:6px;color:#fff;curs
 
 <!-- LOGIN -->
 <div id="loginBox">
-  <form id="loginForm">
-    <h3>Login</h3>
-    <input id="name" placeholder="Name" required>
-    <input id="age" type="number" placeholder="Age" required>
-    <select id="gender" required>
-      <option value="">Gender</option>
-      <option>Male</option>
-      <option>Female</option>
-      <option>Other</option>
-    </select>
-    <button>Enter</button>
-  </form>
+<form id="loginForm">
+<h3>Login</h3>
+<input id="name" placeholder="Name" required>
+<input id="age" type="number" placeholder="Age" required>
+<select id="gender" required>
+<option value="">Gender</option>
+<option>Male</option>
+<option>Female</option>
+<option>Other</option>
+</select>
+<button>Enter</button>
+</form>
 </div>
 
 <h3 style="text-align:center">🔥 Random Video - Tamil VM</h3>
-<div id="userInfo"></div>
 
 <div id="videoContainer">
-  <video id="remoteVideo" autoplay playsinline></video>
-  <video id="localVideo" autoplay muted playsinline></video>
-  <div id="partnerInfo"></div>
+<video id="remoteVideo" autoplay playsinline></video>
+<video id="localVideo" autoplay muted playsinline></video>
 
-  <div id="waitingOverlay">
-    <div class="spinner"></div>
-    <div>Waiting for partner...</div>
-  </div>
+<div id="timer">00:00</div>
+<div id="partnerInfo"></div>
+
+<div id="waitingOverlay">
+<div class="spinner"></div>
+<div>Waiting for partner...</div>
+</div>
 </div>
 
 <div class="controls">
-  <button id="startBtn">Find Partner</button>
-  <button id="nextBtn" disabled>Next</button>
-  <button id="hangBtn" disabled>Hang Up</button>
-  <button id="muteBtn" disabled>Mute</button>
-  <button id="camBtn" disabled>Camera</button>
+<button id="startBtn">Find</button>
+<button id="nextBtn" disabled>Next</button>
+<button id="hangBtn" disabled>Hang</button>
+<button id="muteBtn" disabled>Mute</button>
+<button id="camBtn" disabled>Camera</button>
+<button id="reportBtn" disabled>Report</button>
+<button id="blockBtn" disabled>Block</button>
 </div>
 
 <script>
 (async()=>{
 
-/* ---------- LOGIN (REMEMBER DEVICE) ---------- */
+/* ---------- LOGIN ---------- */
 let user = JSON.parse(localStorage.getItem("vmUser"));
-const loginBox = document.getElementById("loginBox");
-const userInfo = document.getElementById("userInfo");
+let blocked = JSON.parse(localStorage.getItem("vmBlocked")||"[]");
+const loginBox=document.getElementById("loginBox");
 
 if(!user){
-  loginBox.style.display="flex";
-  loginForm.onsubmit = e => {
-    e.preventDefault();
-    user = {
-      name: name.value.trim(),
-      age: Number(age.value),
-      gender: gender.value
-    };
-    localStorage.setItem("vmUser", JSON.stringify(user));
-    loginBox.style.display="none";
-    userInfo.textContent = `You: ${user.name}, ${user.age}, ${user.gender}`;
-  };
-}else{
-  userInfo.textContent = `You: ${user.name}, ${user.age}, ${user.gender}`;
+ loginBox.style.display="flex";
+ loginForm.onsubmit=e=>{
+  e.preventDefault();
+  user={name:name.value,age:+age.value,gender:gender.value};
+  localStorage.setItem("vmUser",JSON.stringify(user));
+  loginBox.style.display="none";
+ };
 }
 
-/* ---------- FIREBASE (YOUR ORIGINAL CONFIG) ---------- */
-const firebaseConfig = {
-  apiKey: "AIzaSyAlWP5D79PsX29H0hIZlfvL0YV5Us7v5I4",
-  authDomain: "sample-firebase-ai-app-1f408.firebaseapp.com",
-  databaseURL: "https://sample-firebase-ai-app-1f408-default-rtdb.asia-southeast1.firebasedatabase.app",
-  projectId: "sample-firebase-ai-app-1f408",
-  storageBucket: "sample-firebase-ai-app-1f408.firebasestorage.app",
-  messagingSenderId: "657942233322",
-  appId: "1:657942233322:web:a8dd9896ca8cfccdbb5793"
-};
-firebase.initializeApp(firebaseConfig);
-const db = firebase.database();
+/* ---------- FIREBASE ---------- */
+firebase.initializeApp({
+ apiKey:"AIzaSyAlWP5D79PsX29H0hIZlfvL0YV5Us7v5I4",
+ authDomain:"sample-firebase-ai-app-1f408.firebaseapp.com",
+ databaseURL:"https://sample-firebase-ai-app-1f408-default-rtdb.asia-southeast1.firebasedatabase.app",
+ projectId:"sample-firebase-ai-app-1f408",
+ storageBucket:"sample-firebase-ai-app-1f408.firebasestorage.app",
+ messagingSenderId:"657942233322",
+ appId:"1:657942233322:web:a8dd9896ca8cfccdbb5793"
+});
+const db=firebase.database();
 
-/* ---------- WEBRTC ORIGINAL LOGIC ---------- */
-const localVideo = document.getElementById("localVideo");
-const remoteVideo = document.getElementById("remoteVideo");
-const overlay = document.getElementById("waitingOverlay");
-const partnerInfo = document.getElementById("partnerInfo");
+/* ---------- ELEMENTS ---------- */
+const localVideo=document.getElementById("localVideo");
+const remoteVideo=document.getElementById("remoteVideo");
+const overlay=document.getElementById("waitingOverlay");
+const partnerInfo=document.getElementById("partnerInfo");
+const timerEl=document.getElementById("timer");
 
-const startBtn = document.getElementById("startBtn");
-const nextBtn = document.getElementById("nextBtn");
-const hangBtn = document.getElementById("hangBtn");
-const muteBtn = document.getElementById("muteBtn");
-const camBtn = document.getElementById("camBtn");
+const startBtn=document.getElementById("startBtn");
+const nextBtn=document.getElementById("nextBtn");
+const hangBtn=document.getElementById("hangBtn");
+const muteBtn=document.getElementById("muteBtn");
+const camBtn=document.getElementById("camBtn");
+const reportBtn=document.getElementById("reportBtn");
+const blockBtn=document.getElementById("blockBtn");
 
-let pc, stream, queueKey, callId, isInitiator;
-const clientId = "c_" + Math.random().toString(36).slice(2,8);
-const iceConfig = { iceServers:[{urls:"stun:stun.l.google.com:19302"}] };
+/* ---------- STATE ---------- */
+let pc,stream,queueKey,callId,isInit,partnerUser;
+let startTime,timerInt;
+const clientId="c_"+Math.random().toString(36).slice(2,8);
+const ice={iceServers:[{urls:"stun:stun.l.google.com:19302"}]};
 
-async function getMedia(){
-  if(stream) return;
-  stream = await navigator.mediaDevices.getUserMedia({video:true,audio:true});
-  localVideo.srcObject = stream;
+/* ---------- MEDIA ---------- */
+async function media(){
+ if(stream) return;
+ stream=await navigator.mediaDevices.getUserMedia({video:true,audio:true});
+ localVideo.srcObject=stream;
 }
 
-async function enterQueue(){
-  await getMedia();
-  const q = db.ref("queue").push();
-  queueKey = q.key;
-  q.set({...user,id:clientId,ts:Date.now()});
-  q.onDisconnect().remove();
-  overlay.style.display="flex";
+/* ---------- TIMER ---------- */
+function startTimer(){
+ startTime=Date.now();
+ timerInt=setInterval(()=>{
+  const d=Date.now()-startTime;
+  timerEl.textContent=
+   String(Math.floor(d/60000)).padStart(2,"0")+":"+
+   String(Math.floor(d/1000)%60).padStart(2,"0");
+ },1000);
+}
+function stopTimer(){
+ clearInterval(timerInt);
+ timerEl.textContent="00:00";
+}
 
-  db.ref("queue").on("child_added", snap=>{
-    if(snap.key===queueKey) return;
-    const other = snap.val();
-    const pairRef = db.ref("pairs/"+snap.key);
-    pairRef.transaction(cur=>{
-      if(!cur) return {a:snap.key,b:queueKey,aUser:other,bUser:user};
-    },(e,ok,s)=>{
-      if(ok){
-        callId="call_"+snap.key+"_"+queueKey;
-        isInitiator=true;
-        startCall(s.val().aUser);
-      }
-    });
-  });
+/* ---------- QUEUE ---------- */
+async function join(){
+ await media();
+ const q=db.ref("queue").push();
+ queueKey=q.key;
+ q.set({...user,id:clientId,ts:Date.now()});
+ q.onDisconnect().remove();
+ overlay.style.display="flex";
 
-  db.ref("pairs/"+queueKey).on("value", s=>{
-    if(s.val() && !callId){
-      callId="call_"+s.val().a+"_"+queueKey;
-      isInitiator=false;
-      startCall(s.val().aUser);
+ db.ref("queue").on("child_added",snap=>{
+  if(snap.key===queueKey) return;
+  if(blocked.includes(snap.val().id)) return;
+  const pair=db.ref("pairs/"+snap.key);
+  pair.transaction(c=>!c?{a:snap.key,b:queueKey,aUser:snap.val(),bUser:user}:undefined,
+   (e,ok,s)=>{
+    if(ok){
+     callId="call_"+snap.key+"_"+queueKey;
+     isInit=true;
+     startCall(s.val().aUser);
     }
-  });
-}
+   });
+ });
 
-async function startCall(partner){
-  overlay.style.display="none";
-  partnerInfo.textContent = `Partner: ${partner.name}, ${partner.age}, ${partner.gender}`;
-
-  pc = new RTCPeerConnection(iceConfig);
-  stream.getTracks().forEach(t=>pc.addTrack(t,stream));
-  pc.ontrack = e => remoteVideo.srcObject = e.streams[0];
-
-  const callRef = db.ref("calls/"+callId);
-  const offerRef = callRef.child("offer");
-  const answerRef = callRef.child("answer");
-
-  pc.onicecandidate = e => e.candidate && callRef.child(isInitiator?"offerCandidates":"answerCandidates").push(e.candidate.toJSON());
-  callRef.child(isInitiator?"answerCandidates":"offerCandidates").on("child_added", s => pc.addIceCandidate(new RTCIceCandidate(s.val())));
-
-  if(isInitiator){
-    const offer = await pc.createOffer();
-    await pc.setLocalDescription(offer);
-    offerRef.set(offer);
-    answerRef.on("value", s=>s.val() && pc.setRemoteDescription(new RTCSessionDescription(s.val())));
-  }else{
-    offerRef.on("value", async s=>{
-      if(s.val()){
-        await pc.setRemoteDescription(new RTCSessionDescription(s.val()));
-        const ans = await pc.createAnswer();
-        await pc.setLocalDescription(ans);
-        answerRef.set(ans);
-      }
-    });
+ db.ref("pairs/"+queueKey).on("value",s=>{
+  if(s.val()&&!callId){
+   callId="call_"+s.val().a+"_"+queueKey;
+   isInit=false;
+   startCall(s.val().aUser);
   }
-
-  startBtn.disabled=true;
-  nextBtn.disabled=hangBtn.disabled=muteBtn.disabled=camBtn.disabled=false;
+ });
 }
 
-async function hangUp(){
-  if(pc) pc.close();
-  if(callId) db.ref("calls/"+callId).remove();
-  callId=null;
-  partnerInfo.textContent="";
-  overlay.style.display="flex";
-  startBtn.disabled=false;
+/* ---------- CALL ---------- */
+async function startCall(p){
+ partnerUser=p;
+ overlay.style.display="none";
+ partnerInfo.textContent=`${p.name}, ${p.age}, ${p.gender}`;
+ startTimer();
+
+ pc=new RTCPeerConnection(ice);
+ stream.getTracks().forEach(t=>pc.addTrack(t,stream));
+ pc.ontrack=e=>remoteVideo.srcObject=e.streams[0];
+
+ const ref=db.ref("calls/"+callId);
+ const o=ref.child("offer"),a=ref.child("answer");
+
+ pc.onicecandidate=e=>e.candidate&&ref.child(isInit?"oC":"aC").push(e.candidate.toJSON());
+ ref.child(isInit?"aC":"oC").on("child_added",s=>pc.addIceCandidate(new RTCIceCandidate(s.val())));
+
+ if(isInit){
+  const off=await pc.createOffer();
+  await pc.setLocalDescription(off);
+  o.set(off);
+  a.on("value",s=>s.val()&&pc.setRemoteDescription(new RTCSessionDescription(s.val())));
+ }else{
+  o.on("value",async s=>{
+   if(s.val()){
+    await pc.setRemoteDescription(new RTCSessionDescription(s.val()));
+    const ans=await pc.createAnswer();
+    await pc.setLocalDescription(ans);
+    a.set(ans);
+   }
+  });
+ }
+
+ startBtn.disabled=true;
+ nextBtn.disabled=hangBtn.disabled=muteBtn.disabled=camBtn.disabled=reportBtn.disabled=blockBtn.disabled=false;
 }
 
-startBtn.onclick=enterQueue;
-hangBtn.onclick=hangUp;
-nextBtn.onclick=()=>{hangUp();enterQueue()};
-muteBtn.onclick=()=>{const t=stream.getAudioTracks()[0];t.enabled=!t.enabled};
-camBtn.onclick=()=>{const t=stream.getVideoTracks()[0];t.enabled=!t.enabled};
+/* ---------- ACTIONS ---------- */
+async function hang(){
+ if(pc) pc.close();
+ if(callId) db.ref("calls/"+callId).remove();
+ callId=null;partnerUser=null;
+ stopTimer();
+ overlay.style.display="flex";
+ partnerInfo.textContent="";
+ startBtn.disabled=false;
+}
+
+reportBtn.onclick=()=>{
+ db.ref("reports").push({from:clientId,against:partnerUser.id,time:Date.now()});
+ alert("Reported");
+};
+
+blockBtn.onclick=()=>{
+ blocked.push(partnerUser.id);
+ localStorage.setItem("vmBlocked",JSON.stringify(blocked));
+ hang();
+};
+
+startBtn.onclick=join;
+hangBtn.onclick=hang;
+nextBtn.onclick=()=>{hang();join()};
+muteBtn.onclick=()=>stream.getAudioTracks()[0].enabled^=1;
+camBtn.onclick=()=>stream.getVideoTracks()[0].enabled^=1;
 
 })();
 </script>
