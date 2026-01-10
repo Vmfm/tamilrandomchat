@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html>
+<html lang="en">
 <head>
 <meta charset="UTF-8">
 <title>Tamil VM – Meet New People</title>
@@ -12,37 +12,32 @@
 <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-storage-compat.js"></script>
 
 <style>
-body{margin:0;font-family:Arial;background:#0f172a;color:white}
-input,select,button{width:100%;padding:10px;margin-top:10px;border-radius:8px;border:none}
-button{background:#2563eb;color:white;font-weight:bold}
+body{margin:0;font-family:Arial;background:#0f172a;color:#fff}
 .hidden{display:none}
-
-/* TOP */
-.top{display:flex;justify-content:space-between;align-items:center;
-padding:12px;background:#020617}
+input,select,button{width:100%;padding:10px;margin-top:10px;border-radius:8px;border:none}
+button{background:#2563eb;color:white;font-weight:bold;cursor:pointer}
+.top{display:flex;justify-content:space-between;align-items:center;padding:12px;background:#020617}
 .badge{background:red;border-radius:50%;padding:2px 6px;font-size:12px}
 
-/* LOGIN */
-.card{max-width:400px;margin:50px auto;background:#020617;padding:20px;border-radius:12px}
+/* Login */
+.card{max-width:400px;margin:60px auto;background:#020617;padding:20px;border-radius:12px}
 
-/* USERS */
-#users{display:grid;grid-template-columns:repeat(auto-fill,minmax(130px,1fr));
-gap:10px;padding:10px}
+/* Users */
+#users{display:grid;grid-template-columns:repeat(auto-fill,minmax(130px,1fr));gap:10px;padding:10px}
 .user{background:#020617;padding:10px;border-radius:12px;text-align:center;cursor:pointer;position:relative}
 .user img{width:70px;height:70px;border-radius:50%;object-fit:cover}
-.online{width:10px;height:10px;border-radius:50%;background:#22c55e;
-position:absolute;top:8px;right:8px}
+.online{width:10px;height:10px;border-radius:50%;background:#22c55e;position:absolute;top:8px;right:8px}
 
-/* CHAT */
+/* Chat */
 #chat{position:fixed;inset:0;background:#020617;display:none;flex-direction:column}
 #msgs{flex:1;overflow:auto;padding:10px}
 .msg{background:#1e293b;padding:8px;margin-bottom:6px;border-radius:8px;max-width:70%}
 .me{background:#2563eb;margin-left:auto}
 
-/* ADMIN */
+/* Admin */
 #adminPanel{position:fixed;inset:0;background:#020617;overflow:auto}
 table{width:100%;border-collapse:collapse}
-td,th{border:1px solid #334155;padding:6px;text-align:center}
+td,th{border:1px solid #334155;padding:6px}
 </style>
 </head>
 
@@ -57,13 +52,15 @@ td,th{border:1px solid #334155;padding:6px;text-align:center}
 </div>
 
 <!-- LOGIN -->
-<div id="login" class="card">
+<div id="loginBox" class="card">
   <h3>Login</h3>
-  <input id="name" placeholder="Name">
+  <input id="name" placeholder="First Name">
   <input id="age" type="number" placeholder="Age (18+)">
   <select id="gender">
-    <option value="">Gender</option>
-    <option>Male</option><option>Female</option><option>Other</option>
+    <option value="">Select Gender</option>
+    <option>Male</option>
+    <option>Female</option>
+    <option>Other</option>
   </select>
   <input id="photo" type="file" accept="image/*">
   <small>❗ Adult / 18+ images not allowed</small>
@@ -76,7 +73,7 @@ td,th{border:1px solid #334155;padding:6px;text-align:center}
 <!-- CHAT -->
 <div id="chat">
   <div class="top">
-    <span onclick="chat.style.display='none'">⬅</span>
+    <span onclick="chat.style.display='none'">⬅ Back</span>
     <span id="chatName"></span>
   </div>
   <div id="msgs"></div>
@@ -86,7 +83,7 @@ td,th{border:1px solid #334155;padding:6px;text-align:center}
   </div>
 </div>
 
-<!-- ADMIN -->
+<!-- ADMIN PANEL -->
 <div id="adminPanel" class="hidden">
   <div class="top">
     <b>Admin Panel</b>
@@ -101,7 +98,7 @@ td,th{border:1px solid #334155;padding:6px;text-align:center}
 </div>
 
 <script>
-/* ----------------- Firebase config ----------------- */
+/* Firebase Config */
 const firebaseConfig = {
   apiKey: "AIzaSyB1VbLbqBxCiG_bfGoQgQyapXwHUQ-Q7BU",
   authDomain: "tamil-chat-2d54e.firebaseapp.com",
@@ -111,49 +108,67 @@ const firebaseConfig = {
   messagingSenderId: "804705969240",
   appId: "1:804705969240:web:658df281dd8360843c162d"
 };
+
 firebase.initializeApp(firebaseConfig);
 
-const auth=firebase.auth();
-const db=firebase.database();
-const storage=firebase.storage();
+const auth = firebase.auth();
+const db = firebase.database();
+const storage = firebase.storage();
 
-let currentUser, chatWith, notifyCount=0;
+let currentUser=null, chatWith=null, notifyCount=0;
 
 /* LOGIN */
 function login(){
-  if(age.value<18){alert("18+ only");return}
-  if(photo.files[0] && /(sex|nude|adult|xxx)/i.test(photo.files[0].name)){
-    alert("Invalid image");return;
-  }
+  const uname=name.value.trim();
+  const uage=parseInt(age.value);
+  const ugender=gender.value;
+  const file=photo.files[0];
+
+  if(!uname) return alert("Enter name");
+  if(!uage || uage<18) return alert("18+ only allowed");
+  if(!ugender) return alert("Select gender");
+  if(file && /(sex|nude|adult|xxx)/i.test(file.name))
+    return alert("Adult images not allowed");
 
   auth.signInAnonymously().then(res=>{
     currentUser=res.user;
-    if(photo.files[0]){
-      const ref=storage.ref("profiles/"+currentUser.uid);
-      ref.put(photo.files[0]).then(()=>{
-        ref.getDownloadURL().then(url=>saveUser(url));
-      });
-    }else saveUser("https://i.pravatar.cc/150");
-  });
+
+    if(!file){
+      saveUser("https://i.pravatar.cc/150?img=12");
+      return;
+    }
+
+    const ref=storage.ref("profiles/"+currentUser.uid);
+    ref.put(file).then(()=>{
+      ref.getDownloadURL().then(url=>saveUser(url));
+    });
+  }).catch(e=>alert(e.message));
 }
 
-function saveUser(img){
+function saveUser(photoURL){
   db.ref("users/"+currentUser.uid).set({
-    name:name.value,age:age.value,gender:gender.value,
-    photo:img,online:true,blocked:false
+    name:name.value,
+    age:age.value,
+    gender:gender.value,
+    photo:photoURL,
+    online:true,
+    blocked:false
   });
-  loginDiv();
+  loadUsers();
 }
 
-/* LOAD USERS */
-function loginDiv(){
-  login.classList.add("hidden");
+/* USERS */
+function loadUsers(){
+  loginBox.classList.add("hidden");
   users.classList.remove("hidden");
+
   db.ref("users").on("value",snap=>{
     users.innerHTML="";
     snap.forEach(s=>{
-      if(s.key===currentUser.uid||s.val().blocked) return;
+      if(s.key===currentUser.uid) return;
       const u=s.val();
+      if(u.blocked) return;
+
       users.innerHTML+=`
       <div class="user" onclick="openChat('${s.key}','${u.name}')">
         <span class="online"></span>
@@ -169,29 +184,37 @@ function openChat(uid,name){
   chatWith=uid;
   chatName.innerText=name;
   chat.style.display="flex";
+  msgs.innerHTML="";
+
   const id=[currentUser.uid,uid].sort().join("_");
+  db.ref("chats/"+id).off();
   db.ref("chats/"+id).on("child_added",s=>{
     const m=s.val();
     msgs.innerHTML+=`<div class="msg ${m.uid===currentUser.uid?'me':''}">${m.text}</div>`;
   });
 }
+
 function sendMsg(){
+  if(!msg.value) return;
   const id=[currentUser.uid,chatWith].sort().join("_");
   db.ref("chats/"+id).push({uid:currentUser.uid,text:msg.value});
   notifyUser(chatWith);
   msg.value="";
 }
 
-/* NOTIFY */
+/* NOTIFICATIONS */
 function notifyUser(uid){
   db.ref("notifications/"+uid).push({from:currentUser.uid});
 }
-db.ref("notifications").child(auth.currentUser?.uid||"x")
-.on("child_added",()=>{
-  notifyCount++; notify.innerText=notifyCount;
+db.ref("notifications").on("child_added",()=>{
+  notifyCount++;
+  notify.innerText=notifyCount;
   notify.classList.remove("hidden");
 });
-function clearNotify(){notifyCount=0;notify.classList.add("hidden")}
+function clearNotify(){
+  notifyCount=0;
+  notify.classList.add("hidden");
+}
 
 /* ADMIN */
 function openAdmin(){
@@ -202,6 +225,7 @@ function openAdmin(){
     loadAdmin();
   } else alert("Invalid admin");
 }
+
 function loadAdmin(){
   db.ref("users").on("value",snap=>{
     adminUsers.innerHTML="";
