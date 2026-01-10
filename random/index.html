@@ -1,77 +1,227 @@
 <!DOCTYPE html>
 <html>
 <head>
-<meta charset="utf-8">
-<title>ID Video Call</title>
-<script src="https://unpkg.com/peerjs@1.5.4/dist/peerjs.min.js"></script>
+<meta charset="UTF-8">
+<title>Tamil VM – Meet New People</title>
+<meta name="viewport" content="width=device-width, initial-scale=1">
+
+<!-- Firebase -->
+<script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-auth-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-database-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-storage-compat.js"></script>
+
 <style>
-body { background:#111; color:#fff; font-family:sans-serif; text-align:center }
-video { width:45%; background:#000; margin:5px; border-radius:10px }
-input,button { padding:10px; margin:5px; border-radius:6px }
+body{margin:0;font-family:Arial;background:#0f172a;color:white}
+input,select,button{width:100%;padding:10px;margin-top:10px;border-radius:8px;border:none}
+button{background:#2563eb;color:white;font-weight:bold}
+.hidden{display:none}
+
+/* TOP */
+.top{display:flex;justify-content:space-between;align-items:center;
+padding:12px;background:#020617}
+.badge{background:red;border-radius:50%;padding:2px 6px;font-size:12px}
+
+/* LOGIN */
+.card{max-width:400px;margin:50px auto;background:#020617;padding:20px;border-radius:12px}
+
+/* USERS */
+#users{display:grid;grid-template-columns:repeat(auto-fill,minmax(130px,1fr));
+gap:10px;padding:10px}
+.user{background:#020617;padding:10px;border-radius:12px;text-align:center;cursor:pointer;position:relative}
+.user img{width:70px;height:70px;border-radius:50%;object-fit:cover}
+.online{width:10px;height:10px;border-radius:50%;background:#22c55e;
+position:absolute;top:8px;right:8px}
+
+/* CHAT */
+#chat{position:fixed;inset:0;background:#020617;display:none;flex-direction:column}
+#msgs{flex:1;overflow:auto;padding:10px}
+.msg{background:#1e293b;padding:8px;margin-bottom:6px;border-radius:8px;max-width:70%}
+.me{background:#2563eb;margin-left:auto}
+
+/* ADMIN */
+#adminPanel{position:fixed;inset:0;background:#020617;overflow:auto}
+table{width:100%;border-collapse:collapse}
+td,th{border:1px solid #334155;padding:6px;text-align:center}
 </style>
 </head>
+
 <body>
 
-<h2>Video / Audio Call</h2>
-
-<div>
-  <input id="myId" placeholder="Your ID">
-  <button onclick="login()">Login</button>
+<div class="top">
+  <b>Tamil VM Chat</b>
+  <div>
+    <span onclick="openAdmin()">🛡️</span>
+    <span onclick="clearNotify()">🔔 <span id="notify" class="badge hidden">0</span></span>
+  </div>
 </div>
 
-<div>
-  <input id="callId" placeholder="Friend ID">
-  <button onclick="videoCall()">Video Call</button>
-  <button onclick="audioCall()">Audio Call</button>
+<!-- LOGIN -->
+<div id="login" class="card">
+  <h3>Login</h3>
+  <input id="name" placeholder="Name">
+  <input id="age" type="number" placeholder="Age (18+)">
+  <select id="gender">
+    <option value="">Gender</option>
+    <option>Male</option><option>Female</option><option>Other</option>
+  </select>
+  <input id="photo" type="file" accept="image/*">
+  <small>❗ Adult / 18+ images not allowed</small>
+  <button onclick="login()">Continue</button>
 </div>
 
-<p>Your ID: <span id="showId">-</span></p>
+<!-- USERS -->
+<div id="users" class="hidden"></div>
 
-<video id="local" autoplay muted playsinline></video>
-<video id="remote" autoplay playsinline></video>
+<!-- CHAT -->
+<div id="chat">
+  <div class="top">
+    <span onclick="chat.style.display='none'">⬅</span>
+    <span id="chatName"></span>
+  </div>
+  <div id="msgs"></div>
+  <div style="display:flex;padding:10px">
+    <input id="msg">
+    <button onclick="sendMsg()">Send</button>
+  </div>
+</div>
+
+<!-- ADMIN -->
+<div id="adminPanel" class="hidden">
+  <div class="top">
+    <b>Admin Panel</b>
+    <button onclick="adminPanel.classList.add('hidden')">Close</button>
+  </div>
+  <table>
+    <thead>
+      <tr><th>Name</th><th>Age</th><th>Status</th><th>Action</th></tr>
+    </thead>
+    <tbody id="adminUsers"></tbody>
+  </table>
+</div>
 
 <script>
-let peer;
-let localStream;
+/* ----------------- Firebase config ----------------- */
+const firebaseConfig = {
+  apiKey: "AIzaSyB1VbLbqBxCiG_bfGoQgQyapXwHUQ-Q7BU",
+  authDomain: "tamil-chat-2d54e.firebaseapp.com",
+  databaseURL: "https://tamil-chat-2d54e-default-rtdb.firebaseio.com",
+  projectId: "tamil-chat-2d54e",
+  storageBucket: "tamil-chat-2d54e.appspot.com",
+  messagingSenderId: "804705969240",
+  appId: "1:804705969240:web:658df281dd8360843c162d"
+};
+firebase.initializeApp(firebaseConfig);
 
-async function login() {
-  const id = document.getElementById("myId").value;
-  if(!id) return alert("Enter ID");
+const auth=firebase.auth();
+const db=firebase.database();
+const storage=firebase.storage();
 
-  peer = new Peer(id);
+let currentUser, chatWith, notifyCount=0;
 
-  peer.on("open", () => {
-    document.getElementById("showId").innerText = id;
-    alert("Logged in as " + id);
+/* LOGIN */
+function login(){
+  if(age.value<18){alert("18+ only");return}
+  if(photo.files[0] && /(sex|nude|adult|xxx)/i.test(photo.files[0].name)){
+    alert("Invalid image");return;
+  }
+
+  auth.signInAnonymously().then(res=>{
+    currentUser=res.user;
+    if(photo.files[0]){
+      const ref=storage.ref("profiles/"+currentUser.uid);
+      ref.put(photo.files[0]).then(()=>{
+        ref.getDownloadURL().then(url=>saveUser(url));
+      });
+    }else saveUser("https://i.pravatar.cc/150");
   });
+}
 
-  peer.on("call", call => {
-    call.answer(localStream);
-    call.on("stream", s => remote.srcObject = s);
+function saveUser(img){
+  db.ref("users/"+currentUser.uid).set({
+    name:name.value,age:age.value,gender:gender.value,
+    photo:img,online:true,blocked:false
+  });
+  loginDiv();
+}
+
+/* LOAD USERS */
+function loginDiv(){
+  login.classList.add("hidden");
+  users.classList.remove("hidden");
+  db.ref("users").on("value",snap=>{
+    users.innerHTML="";
+    snap.forEach(s=>{
+      if(s.key===currentUser.uid||s.val().blocked) return;
+      const u=s.val();
+      users.innerHTML+=`
+      <div class="user" onclick="openChat('${s.key}','${u.name}')">
+        <span class="online"></span>
+        <img src="${u.photo}">
+        <div>${u.name}</div>
+      </div>`;
+    });
   });
 }
 
-async function getMedia(video) {
-  localStream = await navigator.mediaDevices.getUserMedia({
-    video: video,
-    audio: true
+/* CHAT */
+function openChat(uid,name){
+  chatWith=uid;
+  chatName.innerText=name;
+  chat.style.display="flex";
+  const id=[currentUser.uid,uid].sort().join("_");
+  db.ref("chats/"+id).on("child_added",s=>{
+    const m=s.val();
+    msgs.innerHTML+=`<div class="msg ${m.uid===currentUser.uid?'me':''}">${m.text}</div>`;
   });
-  local.srcObject = localStream;
+}
+function sendMsg(){
+  const id=[currentUser.uid,chatWith].sort().join("_");
+  db.ref("chats/"+id).push({uid:currentUser.uid,text:msg.value});
+  notifyUser(chatWith);
+  msg.value="";
 }
 
-async function videoCall() {
-  await getMedia(true);
-  const id = callId.value;
-  const call = peer.call(id, localStream);
-  call.on("stream", s => remote.srcObject = s);
+/* NOTIFY */
+function notifyUser(uid){
+  db.ref("notifications/"+uid).push({from:currentUser.uid});
 }
+db.ref("notifications").child(auth.currentUser?.uid||"x")
+.on("child_added",()=>{
+  notifyCount++; notify.innerText=notifyCount;
+  notify.classList.remove("hidden");
+});
+function clearNotify(){notifyCount=0;notify.classList.add("hidden")}
 
-async function audioCall() {
-  await getMedia(false);
-  const id = callId.value;
-  const call = peer.call(id, localStream);
-  call.on("stream", s => remote.srcObject = s);
+/* ADMIN */
+function openAdmin(){
+  const e=prompt("Admin Email");
+  const p=prompt("Admin Password");
+  if(e==="admin@tamilvm.com" && p==="admin123"){
+    adminPanel.classList.remove("hidden");
+    loadAdmin();
+  } else alert("Invalid admin");
 }
+function loadAdmin(){
+  db.ref("users").on("value",snap=>{
+    adminUsers.innerHTML="";
+    snap.forEach(s=>{
+      const u=s.val();
+      adminUsers.innerHTML+=`
+      <tr>
+        <td>${u.name}</td>
+        <td>${u.age}</td>
+        <td>${u.online?"Online":"Offline"}</td>
+        <td>
+          <button onclick="blockUser('${s.key}')">Block</button>
+          <button onclick="delUser('${s.key}')">Delete</button>
+        </td>
+      </tr>`;
+    });
+  });
+}
+function blockUser(uid){db.ref("users/"+uid+"/blocked").set(true)}
+function delUser(uid){db.ref("users/"+uid).remove()}
 </script>
 
 </body>
