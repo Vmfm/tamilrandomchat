@@ -2,270 +2,135 @@
 <html lang="en">
 <head>
 <meta charset="UTF-8">
-<meta name="viewport" content="width=device-width,initial-scale=1">
-<title>Tamil Chat – Full with UID</title>
+<title>TAMIL VM LIVE TV</title>
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
+
+<link href="https://unpkg.com/video.js/dist/video-js.css" rel="stylesheet">
+<script src="https://unpkg.com/video.js/dist/video.js"></script>
+<script src="https://ajax.googleapis.com/ajax/libs/jquery/3.5.1/jquery.min.js"></script>
+
 <style>
-:root {--muted:#aaa}
-body{margin:0;font-family:Arial;background:#0b141a;color:#fff}
-#login,#incoming{position:fixed;inset:0;background:#000c;display:flex;align-items:center;justify-content:center;z-index:99}
-.card{background:#111;padding:20px;border-radius:12px;width:90%;max-width:420px}
-#top{background:#202c33;padding:10px;display:flex;justify-content:space-between;align-items:center}
-#chat,#pchat{height:calc(100vh - 120px);overflow:auto;padding:10px}
-.msg{background:#2a3942;margin:6px 0;padding:8px 10px;border-radius:10px;max-width:80%}
-.self{background:#005c4b;margin-left:auto}
-#input{display:flex;padding:8px;background:#202c33}
-#input input{flex:1;border:0;border-radius:20px;padding:8px;background:#2a3942;color:#fff}
-#input button{margin-left:8px;border:0;border-radius:50%;width:40px;background:#25d366}
-#private{position:fixed;inset:0;background:#000b;display:none;flex-direction:column}
-#callBar{position:fixed;bottom:20px;left:50%;transform:translateX(-50%);
-background:#000c;padding:10px 14px;border-radius:20px;display:none;gap:8px;align-items:center}
-#callBar button{border:0;border-radius:12px;padding:6px 10px}
-#notifWrap{display:flex;align-items:center;gap:10px;margin-left:auto}
-.bell{position:relative;cursor:pointer;font-size:24px}
-.badge{position:absolute;top:-6px;right:-6px;background:red;color:#fff;border-radius:50%;font-size:12px;width:18px;height:18px;display:flex;align-items:center;justify-content:center}
-#settingsWrap{position:relative}
-#settingsPanel{position:absolute;top:28px;right:0;background:#111;border:1px solid #333;padding:10px;border-radius:8px;display:none;width:180px;z-index:50}
-.settingRow{display:flex;justify-content:space-between;align-items:center;margin-bottom:6px}
-.toggleBtn{width:40px;height:20px;background:#555;border-radius:10px;position:relative;cursor:pointer}
-.toggleKnob{width:18px;height:18px;background:#fff;border-radius:50%;position:absolute;top:1px;left:1px;transition:0.2s}
-.toggleBtn.on .toggleKnob{left:21px;background:#25d366}
-.msg.typing{font-style:italic;font-size:12px;background:#444}
-.reportBtn{cursor:pointer;color:red;font-size:12px;margin-left:6px}
-.blocked{opacity:0.5;pointer-events:none}
+:root{
+ --bg:#000;
+ --text:#fff;
+ --accent:#ff9800;
+}
+body{
+ margin:0;
+ background:var(--bg);
+ color:var(--text);
+ font-family:system-ui,-apple-system,Segoe UI,sans-serif;
+ overflow:hidden;
+}
+
+/* FULLSCREEN VIDEO */
+.video-js{
+ width:100vw;
+ height:100vh;
+ object-fit:cover;
+}
+
+/* APK BUTTON */
+.apk-btn{
+ position:fixed;
+ top:12px;
+ left:12px;
+ z-index:10000;
+ background:#00e676;
+ color:#000;
+ padding:6px 14px;
+ border-radius:20px;
+ font-size:12px;
+ font-weight:700;
+ text-decoration:none;
+ box-shadow:0 4px 12px rgba(0,0,0,.4);
+}
+
+/* THEME TOGGLE */
+.toggle-btn{
+ position:fixed;
+ top:12px;
+ right:12px;
+ z-index:10000;
+ background:var(--accent);
+ border:none;
+ color:#000;
+ padding:6px 14px;
+ border-radius:20px;
+ font-size:12px;
+ box-shadow:0 4px 12px rgba(0,0,0,.4);
+}
+
+/* LOADER */
+#loader{
+ position:fixed;
+ inset:0;
+ background:#000;
+ display:flex;
+ align-items:center;
+ justify-content:center;
+ z-index:99999;
+}
+#loader img{width:110px}
 </style>
 </head>
 <body>
 
-<div id="login">
-  <div class="card">
-    <h3>Enter Your Name</h3>
-    <input id="name">
-    <button onclick="join()">Join</button>
-  </div>
+<div id="loader">
+ <img src="https://vmfm.github.io/tamilvmtv/image/loading-loader.gif">
 </div>
 
-<div id="incoming" style="display:none">
-  <div class="card">
-    <h3 id="callFrom"></h3>
-    <button onclick="acceptCall()">Accept</button>
-    <button onclick="declineCall()">Decline</button>
-  </div>
-</div>
+<a class="apk-btn" href="https://shareallfiles.net/P29GL8" target="_blank">⬇ Android App</a>
 
-<div id="top">
-  <b>Tamil Group Chat</b>
-  <div id="notifWrap">
-    <div class="bell" id="bellBtn" title="Private messages">🔔
-      <div class="badge" id="bellBadge" style="display:none">0</div>
-    </div>
-    <div id="settingsWrap">
-      <button id="settingsBtn">⚙️</button>
-      <div id="settingsPanel" role="dialog" aria-label="Settings">
-        <div class="settingRow">
-          <div>Audio Call</div>
-          <div class="toggleBtn on" id="toggleCall"><div class="toggleKnob"></div></div>
-        </div>
-        <div class="settingRow">
-          <div>Private Chat</div>
-          <div class="toggleBtn on" id="togglePrivate"><div class="toggleKnob"></div></div>
-        </div>
-        <div class="settingRow">
-          <div>Profile Image</div>
-          <input type="file" id="profileImgInput" accept="image/*" style="color:#fff;font-size:12px">
-        </div>
-        <div class="settingRow">
-          <div></div>
-          <div style="font-size:12px;color:var(--muted)">Your image is saved to your profile.</div>
-        </div>
-      </div>
-    </div>
-  </div>
-</div>
+<button class="toggle-btn" onclick="toggleTheme()">🌙 / ☀️</button>
 
-<div id="chat"></div>
-
-<div id="input">
-  <input id="msg" placeholder="Message">
-  <button onclick="send()">➤</button>
-</div>
-
-<div id="private">
-  <div id="top">
-    <b id="ptitle"></b>
-    <div>
-      <button onclick="startCall()">📞</button>
-      <button onclick="closePrivate()">✕</button>
-    </div>
-  </div>
-  <div id="pchat"></div>
-  <div id="input">
-    <input id="pmsg">
-    <button onclick="sendPrivate()">➤</button>
-  </div>
-</div>
-
-<div id="callBar">
-  <span id="callWith"></span>
-  <span id="callTime">00:00</span>
-  <button onclick="toggleMute()">🎤</button>
-  <button onclick="toggleSpeaker()">🔊</button>
-  <button onclick="endCall()">End</button>
-</div>
-
-<audio id="remoteAudio" autoplay playsinline></audio>
-
-<script src="https://www.gstatic.com/firebasejs/8.10.0/firebase-app.js"></script>
-<script src="https://www.gstatic.com/firebasejs/8.10.0/firebase-database.js"></script>
-<script src="https://www.gstatic.com/firebasejs/8.10.0/firebase-storage.js"></script>
+<video id="tvPlayer" class="video-js vjs-big-play-centered"
+ autoplay playsinline webkit-playsinline muted
+ preload="auto"
+ data-setup='{"controls":false, "autoplay":true, "fluid":true}'>
+</video>
 
 <script>
-firebase.initializeApp({
-  apiKey: "AIzaSyB1VbLbqBxCiG_bfGoQgQyapXwHUQ-Q7BU",
-  authDomain: "tamil-chat-2d54e.firebaseapp.com",
-  databaseURL: "https://tamil-chat-2d54e-default-rtdb.firebaseio.com",
-  projectId: "tamil-chat-2d54e",
-  storageBucket: "tamil-chat-2d54e.appspot.com",
-  messagingSenderId: "804705969240",
-  appId: "1:804705969240:web:658df281dd8360843c162d"
+const M3U_URL="https://vmfm.github.io/tamilvmtv/live/channels.m3u";
+const player = videojs('tvPlayer', { 
+ autoplay: true,
+ controls: false,
+ muted: true, // autoplay works on Android only if muted
+ preload: 'auto',
+ fluid: true,
+ playsinline: true
 });
-const db=firebase.database(),storage=firebase.storage();
-let me=localStorage.name||"",uid=localStorage.uid||generateUID(),withUser="",callId="",pc,localStream,muted=false,speaker=true,timer,enableCall=true,enablePrivate=true,unread=0;
-let blockedUsers = [],reports = {};
-localStorage.uid=uid;
 
-/* ===== LOGIN ===== */
-if(me)login.style.display="none",init();
-function join(){
-  me=name.value.trim(); 
-  if(!me)return;
-  localStorage.name=me; 
-  login.style.display="none"; 
-  init();
-}
-function generateUID(){return 'u'+Math.random().toString(36).substr(2,9);}
+let allChannels = [], views = JSON.parse(localStorage.getItem('views')||'{}');
 
-/* ===== INIT ===== */
-function init(){
-  db.ref("presence/"+uid).set({name:me,online:true});
-  db.ref("presence/"+uid).onDisconnect().remove();
-  listenGroup();listenCalls();listenPrivate();listenTyping();
+if(localStorage.getItem('theme')==='light') document.body.classList.add('light');
+function toggleTheme(){
+ document.body.classList.toggle('light');
+ localStorage.setItem('theme', document.body.classList.contains('light')?'light':'dark');
 }
 
-/* ===== GROUP CHAT ===== */
-function listenGroup(){
-  db.ref("group").limitToLast(100).on("child_added",s=>{
-    let m=s.val();
-    addMsg(chat,m.name,m.text);
-  });
-}
-function send(){
-  if(!msg.value)return;
-  db.ref("group").push({uid, name:me, text:msg.value,time:Date.now()});
-  msg.value="";
-}
+fetch(M3U_URL).then(r=>r.text()).then(d=>{
+ d.split('\n').forEach((l,i,a)=>{
+  if(l.startsWith('#EXTINF')){
+   allChannels.push({
+    name:l.split(',').pop().trim(),
+    logo:(l.match(/tvg-logo="(.*?)"/)||[])[1]||'https://via.placeholder.com/300x200?text=TV',
+    group:(l.match(/group-title="(.*?)"/)||[])[1]||'Other',
+    url:a[i+1]?.trim()
+   });
+  }
+ });
+ // Play the first channel automatically
+ if(allChannels[0]) player.src({src: allChannels[0].url, type: 'application/x-mpegURL'});
+ $('#loader').hide();
+});
 
-/* ===== PRIVATE CHAT ===== */
-function openPrivate(uName,uID){
-  if(uID===uid||!enablePrivate||blockedUsers.includes(uID))return;
-  withUser=uID;ptitle.textContent="Chat with "+uName;pchat.innerHTML="";private.style.display="flex";unread=0;updateBadge();
-  db.ref("private/"+[uid,uID].sort().join("_")).limitToLast(100).on("child_added",s=>{
-    let m=s.val();addMsg(pchat,m.name,m.text);
-  });
-}
-function closePrivate(){private.style.display="none";}
-function sendPrivate(){
-  if(!pmsg.value||!enablePrivate)return;
-  db.ref("private/"+[uid,withUser].sort().join("_")).push({uid,name:me,text:pmsg.value,time:Date.now()});
-  pmsg.value="";
-}
-
-/* ===== UNREAD BADGE ===== */
-function listenPrivate(){
-  db.ref("private").on("child_added",s=>{
-    let key=s.key;
-    if(key.includes(uid)){
-      s.ref.limitToLast(1).once("child_added").then(c=>{
-        let msg=c.val();if(msg.uid!==uid){unread++;updateBadge();}
-      });
-    }
-  });
-}
-function updateBadge(){bellBadge.style.display=unread>0?"flex":"none";bellBadge.textContent=unread;}
-
-/* ===== TYPING ===== */
-msg.oninput=()=>db.ref("typing/group/"+uid).set(msg.value?"typing":"");
-pmsg?.addEventListener("input",()=>db.ref("typing/private/"+[uid,withUser].sort().join("_")).set(pmsg.value?"typing":""));
-function listenTyping(){
-  db.ref("typing/group").on("value",s=>{
-    chat.querySelectorAll(".typing").forEach(e=>e.remove());
-    s.forEach(u=>{
-      if(u.key!==uid&&u.val()==="typing"){
-        let d=document.createElement("div");d.className="msg typing";d.textContent=u.key+" is typing...";chat.appendChild(d);chat.scrollTop=99999;
-      }
-    });
-  });
-}
-
-/* ===== SETTINGS ===== */
-settingsBtn.onclick=()=>settingsPanel.style.display=(settingsPanel.style.display==="flex"?"none":"flex");
-toggleCall.onclick=()=>{enableCall=!enableCall;toggleCall.classList.toggle("on");};
-togglePrivate.onclick=()=>{enablePrivate=!enablePrivate;togglePrivate.classList.toggle("on");};
-
-/* ===== PROFILE IMAGE ===== */
-profileImgInput.onchange=e=>{
-  const file=e.target.files[0];
-  if(!file)return;
-  storage.ref("profiles/"+uid).put(file).then(()=>console.log("Profile uploaded"));
-}
-
-/* ===== BLOCK/REPORT ===== */
-function blockUser(uID){blockedUsers.push(uID);alert("User blocked");}
-function reportUser(uID){reports[uID]=(reports[uID]||0)+1;if(reports[uID]>=3){blockedUsers.push(uID);alert("User auto-banned");}}
-
-/* ===== CALL SIGNALING ===== */
-function startCall(){if(!enableCall||!withUser)return;
-  callId=[uid,withUser].sort().join("_")+"_"+Date.now();
-  db.ref("calls/"+callId).set({from:uid,to:withUser,status:"ringing"});
-}
-function listenCalls(){
-  db.ref("calls").on("child_added",s=>{
-    let c=s.val();
-    if(c.to===uid&&c.status==="ringing"&&enableCall){callId=s.key;callFrom.textContent="Call from "+c.from;incoming.style.display="flex";}
-  });
-  db.ref("calls").on("child_changed",s=>{
-    let c=s.val();
-    if(c.status==="answered")startWebRTC(c.from===uid);
-    if(c.status==="ended")stopCall();
-  });
-}
-function acceptCall(){db.ref("calls/"+callId+"/status").set("answered");incoming.style.display="none";}
-function declineCall(){db.ref("calls/"+callId+"/status").set("ended");incoming.style.display="none");}
-
-/* ===== WEBRTC ===== */
-async function startWebRTC(isCaller){
-  localStream=await navigator.mediaDevices.getUserMedia({audio:true});
-  pc=new RTCPeerConnection({iceServers:[{urls:"stun:stun.l.google.com:19302"}]});
-  localStream.getTracks().forEach(t=>pc.addTrack(t,localStream));
-  pc.ontrack=e=>remoteAudio.srcObject=e.streams[0];
-  pc.onicecandidate=e=>{if(e.candidate)db.ref("calls/"+callId+"/ice").push(JSON.stringify(e.candidate));};
-  db.ref("calls/"+callId+"/ice").on("child_added",s=>{pc.addIceCandidate(new RTCIceCandidate(JSON.parse(s.val()))).catch(()=>{});});
-  if(isCaller){let o=await pc.createOffer();await pc.setLocalDescription(o);db.ref("calls/"+callId+"/offer").set(JSON.stringify(o));}
-  else{db.ref("calls/"+callId+"/offer").once("value").then(async s=>{await pc.setRemoteDescription(JSON.parse(s.val()));let a=await pc.createAnswer();await pc.setLocalDescription(a);db.ref("calls/"+callId+"/answer").set(JSON.stringify(a));});}
-  db.ref("calls/"+callId+"/answer").on("value",s=>{if(s.val()&&!pc.currentRemoteDescription)pc.setRemoteDescription(JSON.parse(s.val())).catch(()=>{});});
-  startCallUI();
-}
-
-/* ===== CALL UI ===== */
-function startCallUI(){callBar.style.display="flex";callWith.textContent=withUser;let start=Date.now();timer=setInterval(()=>{let d=Date.now()-start;callTime.textContent=String(Math.floor(d/60000)).padStart(2,"0")+":"+String(Math.floor(d%60000/1000)).padStart(2,"0");},1000);}
-function toggleMute(){muted=!muted;localStream.getAudioTracks()[0].enabled=!muted;}
-function toggleSpeaker(){speaker=!speaker;remoteAudio.muted=!speaker;}
-function endCall(){db.ref("calls/"+callId+"/status").set("ended");}
-function stopCall(){if(pc)pc.close();if(localStream)localStream.getTracks().forEach(t=>t.stop());clearInterval(timer);callBar.style.display="none";}
-
-/* ===== HELPERS ===== */
-function addMsg(container,name,text,typing=false){
-  let d=document.createElement("div");d.className="msg"+(name===me?" self":"");d.textContent=text?name+": "+text:name+" is typing...";container.appendChild(d);container.scrollTop=99999;
-}
+// Optional: Switch channels by tapping anywhere (simplest Android-friendly UI)
+document.body.addEventListener('click', () => {
+ const next = allChannels[Math.floor(Math.random()*allChannels.length)];
+ if(next) player.src({src: next.url, type: 'application/x-mpegURL'});
+});
 </script>
+
 </body>
 </html>
