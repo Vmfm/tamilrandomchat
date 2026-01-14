@@ -5,8 +5,17 @@
 <title>TAMIL VM LIVE TV</title>
 <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1">
 
+<!-- Bootstrap -->
 <link rel="stylesheet" href="https://maxcdn.bootstrapcdn.com/bootstrap/4.5.2/css/bootstrap.min.css">
+
+<!-- Plyr CSS -->
+<link rel="stylesheet" href="https://cdn.plyr.io/3.7.8/plyr.css" />
+
+<!-- jQuery -->
 <script src="https://ajax.googleapis.com/ajax/libs/jquery/3.5.1/jquery.min.js"></script>
+
+<!-- Plyr JS -->
+<script src="https://cdn.plyr.io/3.7.8/plyr.polyfilled.js"></script>
 
 <style>
 :root{
@@ -50,11 +59,9 @@ body{
  top:0;
  z-index:999;
 }
-video{
- width:100%;
- height:230px;
+.plyr__video-wrapper{
  border-radius:12px;
- object-fit:contain;
+ overflow:hidden;
 }
 
 /* APK BUTTON */
@@ -153,7 +160,6 @@ video{
 }
 </style>
 </head>
-
 <body>
 
 <div id="loader">
@@ -167,7 +173,7 @@ video{
 <button class="toggle-btn" onclick="toggleTheme()">🌙 / ☀️</button>
 
 <div class="header">
- <video id="tvPlayer" controls autoplay playsinline></video>
+ <video id="tvPlayer" playsinline controls></video>
 </div>
 
 <div class="container mt-2">
@@ -180,8 +186,13 @@ video{
 
 <script>
 const M3U_URL="https://vmfm.github.io/tamilvmtv/live/channels.m3u";
-const player=document.getElementById('tvPlayer');
 let allChannels=[],views=JSON.parse(localStorage.getItem('views')||'{}');
+
+// Initialize Plyr
+const player = new Plyr('#tvPlayer', {
+ controls: ['play', 'progress', 'current-time', 'mute', 'volume', 'fullscreen'],
+ autoplay: true
+});
 
 if(localStorage.getItem('theme')==='light') document.body.classList.add('light');
 function toggleTheme(){
@@ -234,7 +245,7 @@ $(document).on('click','.channel',function(){
  const url=$(this).data('src');
  views[n]=(views[n]||0)+1;
  localStorage.setItem('views',JSON.stringify(views));
- player.src = url;
+ player.source = { type: 'video', sources: [{ src: url, type: 'application/x-mpegURL' }] };
  player.play();
  render();
  window.scrollTo({top:0,behavior:'smooth'});
