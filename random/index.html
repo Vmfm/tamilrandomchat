@@ -3,31 +3,64 @@
 <head>
 <meta charset="UTF-8">
 <title>TAMIL VM LIVE TV</title>
-<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1">
 
 <link href="https://unpkg.com/video.js/dist/video-js.css" rel="stylesheet">
+<link rel="stylesheet" href="https://maxcdn.bootstrapcdn.com/bootstrap/4.5.2/css/bootstrap.min.css">
+
 <script src="https://unpkg.com/video.js/dist/video.js"></script>
 <script src="https://ajax.googleapis.com/ajax/libs/jquery/3.5.1/jquery.min.js"></script>
 
 <style>
 :root{
- --bg:#000;
+ --bg:#0b0b0b;
+ --card:#141414;
  --text:#fff;
+ --border:#2a2a2a;
  --accent:#ff9800;
 }
-body{
- margin:0;
- background:var(--bg);
- color:var(--text);
- font-family:system-ui,-apple-system,Segoe UI,sans-serif;
- overflow:hidden;
+body.light{
+ --bg:#f2f2f2;
+ --card:#ffffff;
+ --text:#000;
+ --border:#ddd;
 }
 
-/* FULLSCREEN VIDEO */
+body{
+ background:var(--bg);
+ color:var(--text);
+ margin:0;
+ font-family:system-ui,-apple-system,Segoe UI,sans-serif;
+}
+
+/* LOADER */
+#loader{
+ position:fixed;
+ inset:0;
+ background:#000;
+ display:flex;
+ align-items:center;
+ justify-content:center;
+ z-index:99999;
+}
+#loader img{width:110px}
+
+/* HEADER + PLAYER */
+.header{
+ background:linear-gradient(180deg,#000,#111);
+ padding:8px;
+ position:sticky;
+ top:0;
+ z-index:999;
+}
+
+/* VIDEO PLAYERS */
 .video-js{
- width:100vw;
- height:100vh;
- object-fit:cover;
+ width:100%;
+ height:200px; /* smaller height */
+ border-radius:12px;
+ overflow:hidden;
+ font-size:12px; /* smaller controls */
 }
 
 /* APK BUTTON */
@@ -61,54 +94,153 @@ body{
  box-shadow:0 4px 12px rgba(0,0,0,.4);
 }
 
-/* LOADER */
-#loader{
- position:fixed;
- inset:0;
- background:#000;
+/* SEARCH + CATEGORY */
+.controls{
+ padding:10px;
  display:flex;
- align-items:center;
- justify-content:center;
- z-index:99999;
+ gap:8px;
 }
-#loader img{width:110px}
+.controls input,
+.controls select{
+ flex:1;
+ background:var(--card);
+ color:var(--text);
+ border:1px solid var(--border);
+ border-radius:10px;
+ padding:8px 10px;
+ font-size:14px;
+}
+
+/* CHANNEL LIST */
+.container{
+ max-height:calc(100vh - 310px);
+ overflow-y:auto;
+ padding-bottom:30px;
+}
+
+/* CHANNEL CARD */
+.channel{
+ background:var(--card);
+ border:1px solid var(--border);
+ border-radius:14px;
+ padding:6px;
+ margin-bottom:12px;
+ cursor:pointer;
+ transition:.25s;
+}
+.channel:hover{
+ transform:scale(1.04);
+ border-color:var(--accent);
+}
+.channel img{
+ width:100%;
+ height:120px;
+ object-fit:contain;
+ border-radius:10px;
+ background:#000;
+}
+.channel p{
+ margin:6px 0 2px;
+ font-size:12px;
+ font-weight:600;
+ text-align:center;
+}
+.views{
+ font-size:10px;
+ color:var(--accent);
+ text-align:center;
+}
+
+/* POP PLAYER */
+#popPlayer{
+ position:fixed;
+ bottom:15px;
+ right:15px;
+ width:260px;
+ background:#000;
+ border-radius:12px;
+ display:none;
+ z-index:99999;
+ box-shadow:0 0 20px rgba(0,0,0,.7);
+}
+#popPlayer video{width:100%;height:150px}
+#closePop{
+ position:absolute;
+ top:6px;
+ right:6px;
+ background:red;
+ color:#fff;
+ border:none;
+ width:22px;
+ height:22px;
+ border-radius:50%;
+ font-size:12px;
+}
+
+/* FULLSCREEN FILL */
+.vjs-tech{object-fit:contain}
+body.cover-mode .vjs-tech{object-fit:cover}
+
+/* SCROLL BAR */
+::-webkit-scrollbar{width:6px}
+::-webkit-scrollbar-thumb{
+ background:var(--border);
+ border-radius:10px;
+}
 </style>
 </head>
+
 <body>
 
 <div id="loader">
  <img src="https://vmfm.github.io/tamilvmtv/image/loading-loader.gif">
 </div>
 
-<a class="apk-btn" href="https://shareallfiles.net/P29GL8" target="_blank">⬇ Android App</a>
+<a class="apk-btn" href="https://shareallfiles.net/P29GL8" target="_blank">
+⬇ Android App
+</a>
 
 <button class="toggle-btn" onclick="toggleTheme()">🌙 / ☀️</button>
 
-<video id="tvPlayer" class="video-js vjs-big-play-centered"
- autoplay playsinline webkit-playsinline muted
- preload="auto"
- data-setup='{"controls":false, "autoplay":true, "fluid":true}'>
-</video>
+<div class="header">
+ <!-- Main Player -->
+ <video id="tvPlayer" class="video-js vjs-default-skin" controls autoplay playsinline webkit-playsinline></video>
+ <!-- Additional Players -->
+ <video id="tvPlayer2" class="video-js vjs-default-skin mt-2" controls playsinline webkit-playsinline></video>
+ <video id="tvPlayer3" class="video-js vjs-default-skin mt-2" controls playsinline webkit-playsinline></video>
+</div>
+
+<div id="popPlayer">
+ <button id="closePop" onclick="closePop()">✖</button>
+ <video id="popVideo" class="video-js vjs-default-skin" controls playsinline webkit-playsinline></video>
+</div>
+
+<div class="container mt-2">
+ <div class="controls">
+  <input type="text" id="search" placeholder="🔍 Search Channel">
+  <select id="category"><option value="all">All</option></select>
+ </div>
+ <div class="row" id="channelList"></div>
+</div>
 
 <script>
 const M3U_URL="https://vmfm.github.io/tamilvmtv/live/channels.m3u";
-const player = videojs('tvPlayer', { 
- autoplay: true,
- controls: false,
- muted: true, // autoplay works on Android only if muted
- preload: 'auto',
- fluid: true,
- playsinline: true
-});
+const players = [
+ videojs('tvPlayer'),
+ videojs('tvPlayer2'),
+ videojs('tvPlayer3')
+];
 
-let allChannels = [], views = JSON.parse(localStorage.getItem('views')||'{}');
+let allChannels=[], views=JSON.parse(localStorage.getItem('views')||'{}');
 
 if(localStorage.getItem('theme')==='light') document.body.classList.add('light');
 function toggleTheme(){
  document.body.classList.toggle('light');
- localStorage.setItem('theme', document.body.classList.contains('light')?'light':'dark');
+ localStorage.setItem('theme',
+ document.body.classList.contains('light')?'light':'dark');
 }
 
+// Load Channels
 fetch(M3U_URL).then(r=>r.text()).then(d=>{
  d.split('\n').forEach((l,i,a)=>{
   if(l.startsWith('#EXTINF')){
@@ -120,16 +252,53 @@ fetch(M3U_URL).then(r=>r.text()).then(d=>{
    });
   }
  });
- // Play the first channel automatically
- if(allChannels[0]) player.src({src: allChannels[0].url, type: 'application/x-mpegURL'});
+ [...new Set(allChannels.map(c=>c.group))]
+ .forEach(g=>$('#category').append(`<option>${g}</option>`));
+ render();
  $('#loader').hide();
 });
 
-// Optional: Switch channels by tapping anywhere (simplest Android-friendly UI)
-document.body.addEventListener('click', () => {
- const next = allChannels[Math.floor(Math.random()*allChannels.length)];
- if(next) player.src({src: next.url, type: 'application/x-mpegURL'});
+function render(){
+ const s=$('#search').val().toLowerCase();
+ const c=$('#category').val();
+ $('#channelList').html('');
+ allChannels.filter(x=>(c==='all'||x.group===c)&&x.name.toLowerCase().includes(s))
+ .forEach(x=>{
+  $('#channelList').append(`
+  <div class="col-4 col-md-2">
+   <div class="channel" data-src="${x.url}" data-name="${x.name}">
+    <img src="${x.logo}">
+    <p>${x.name}</p>
+    <div class="views">👁 ${(views[x.name]||0)}</div>
+   </div>
+  </div>`);
+ });
+}
+
+$('#search,#category').on('input change',render);
+
+// Click channel to play in all players
+$(document).on('click','.channel',function(){
+ const n=$(this).data('name');
+ const url=$(this).data('src');
+ views[n]=(views[n]||0)+1;
+ localStorage.setItem('views',JSON.stringify(views));
+ // Example: play in all three players (or pick one if you want)
+ players[0].src({src:url,type:'application/x-mpegURL'});
+ players[0].play();
+ players[1].src({src:url,type:'application/x-mpegURL'});
+ players[1].play();
+ players[2].src({src:url,type:'application/x-mpegURL'});
+ players[2].play();
+ render();
+ window.scrollTo({top:0,behavior:'smooth'});
 });
+
+// Close pop player
+function closePop(){
+ $('#popPlayer').hide();
+ $('#popVideo').trigger('pause');
+}
 </script>
 
 </body>
