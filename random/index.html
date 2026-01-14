@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
-<title>Tamil Chat – Full</title>
+<title>Tamil Chat – Full with UID</title>
 <style>
 :root {--muted:#aaa}
 body{margin:0;font-family:Arial;background:#0b141a;color:#fff}
@@ -129,17 +129,25 @@ firebase.initializeApp({
   appId: "1:804705969240:web:658df281dd8360843c162d"
 });
 const db=firebase.database(),storage=firebase.storage();
-let me=localStorage.name||"",withUser="",callId="",pc,localStream,muted=false,speaker=true,timer,enableCall=true,enablePrivate=true,unread=0;
+let me=localStorage.name||"",uid=localStorage.uid||generateUID(),withUser="",callId="",pc,localStream,muted=false,speaker=true,timer,enableCall=true,enablePrivate=true,unread=0;
 let blockedUsers = [],reports = {};
+localStorage.uid=uid;
 
 /* ===== LOGIN ===== */
 if(me)login.style.display="none",init();
-function join(){me=name.value.trim();if(!me)return;localStorage.name=me;login.style.display="none";init();}
+function join(){
+  me=name.value.trim(); 
+  if(!me)return;
+  localStorage.name=me; 
+  login.style.display="none"; 
+  init();
+}
+function generateUID(){return 'u'+Math.random().toString(36).substr(2,9);}
 
 /* ===== INIT ===== */
 function init(){
-  db.ref("presence/"+me).set(true);
-  db.ref("presence/"+me).onDisconnect().remove();
+  db.ref("presence/"+uid).set({name:me,online:true});
+  db.ref("presence/"+uid).onDisconnect().remove();
   listenGroup();listenCalls();listenPrivate();listenTyping();
 }
 
@@ -147,27 +155,27 @@ function init(){
 function listenGroup(){
   db.ref("group").limitToLast(100).on("child_added",s=>{
     let m=s.val();
-    addMsg(chat,m.name,m.text,m.typing);
+    addMsg(chat,m.name,m.text);
   });
 }
 function send(){
   if(!msg.value)return;
-  db.ref("group").push({name:me,text:msg.value,time:Date.now()});
+  db.ref("group").push({uid, name:me, text:msg.value,time:Date.now()});
   msg.value="";
 }
 
 /* ===== PRIVATE CHAT ===== */
-function openPrivate(u){
-  if(u===me||!enablePrivate||blockedUsers.includes(u))return;
-  withUser=u;ptitle.textContent="Chat with "+u;pchat.innerHTML="";private.style.display="flex";unread=0;updateBadge();
-  db.ref("private/"+[me,u].sort().join("_")).limitToLast(100).on("child_added",s=>{
+function openPrivate(uName,uID){
+  if(uID===uid||!enablePrivate||blockedUsers.includes(uID))return;
+  withUser=uID;ptitle.textContent="Chat with "+uName;pchat.innerHTML="";private.style.display="flex";unread=0;updateBadge();
+  db.ref("private/"+[uid,uID].sort().join("_")).limitToLast(100).on("child_added",s=>{
     let m=s.val();addMsg(pchat,m.name,m.text);
   });
 }
 function closePrivate(){private.style.display="none";}
 function sendPrivate(){
   if(!pmsg.value||!enablePrivate)return;
-  db.ref("private/"+[me,withUser].sort().join("_")).push({name:me,text:pmsg.value,time:Date.now()});
+  db.ref("private/"+[uid,withUser].sort().join("_")).push({uid,name:me,text:pmsg.value,time:Date.now()});
   pmsg.value="";
 }
 
@@ -175,9 +183,9 @@ function sendPrivate(){
 function listenPrivate(){
   db.ref("private").on("child_added",s=>{
     let key=s.key;
-    if(key.includes(me)){
+    if(key.includes(uid)){
       s.ref.limitToLast(1).once("child_added").then(c=>{
-        let msg=c.val();if(msg.name!==me){unread++;updateBadge();}
+        let msg=c.val();if(msg.uid!==uid){unread++;updateBadge();}
       });
     }
   });
@@ -185,13 +193,13 @@ function listenPrivate(){
 function updateBadge(){bellBadge.style.display=unread>0?"flex":"none";bellBadge.textContent=unread;}
 
 /* ===== TYPING ===== */
-msg.oninput=()=>db.ref("typing/group/"+me).set(msg.value?"typing":"");
-pmsg?.addEventListener("input",()=>db.ref("typing/private/"+[me,withUser].sort().join("_")).set(pmsg.value?"typing":""));
+msg.oninput=()=>db.ref("typing/group/"+uid).set(msg.value?"typing":"");
+pmsg?.addEventListener("input",()=>db.ref("typing/private/"+[uid,withUser].sort().join("_")).set(pmsg.value?"typing":""));
 function listenTyping(){
   db.ref("typing/group").on("value",s=>{
     chat.querySelectorAll(".typing").forEach(e=>e.remove());
     s.forEach(u=>{
-      if(u.key!==me&&u.val()==="typing"){
+      if(u.key!==uid&&u.val()==="typing"){
         let d=document.createElement("div");d.className="msg typing";d.textContent=u.key+" is typing...";chat.appendChild(d);chat.scrollTop=99999;
       }
     });
@@ -207,26 +215,26 @@ togglePrivate.onclick=()=>{enablePrivate=!enablePrivate;togglePrivate.classList.
 profileImgInput.onchange=e=>{
   const file=e.target.files[0];
   if(!file)return;
-  storage.ref("profiles/"+me).put(file).then(()=>console.log("Profile uploaded"));
+  storage.ref("profiles/"+uid).put(file).then(()=>console.log("Profile uploaded"));
 }
 
 /* ===== BLOCK/REPORT ===== */
-function blockUser(u){blockedUsers.push(u);alert(u+" blocked");}
-function reportUser(u){reports[u]=(reports[u]||0)+1;if(reports[u]>=3){blockedUsers.push(u);alert(u+" auto-banned");}}
+function blockUser(uID){blockedUsers.push(uID);alert("User blocked");}
+function reportUser(uID){reports[uID]=(reports[uID]||0)+1;if(reports[uID]>=3){blockedUsers.push(uID);alert("User auto-banned");}}
 
 /* ===== CALL SIGNALING ===== */
 function startCall(){if(!enableCall||!withUser)return;
-  callId=[me,withUser].sort().join("_")+"_"+Date.now();
-  db.ref("calls/"+callId).set({from:me,to:withUser,status:"ringing"});
+  callId=[uid,withUser].sort().join("_")+"_"+Date.now();
+  db.ref("calls/"+callId).set({from:uid,to:withUser,status:"ringing"});
 }
 function listenCalls(){
   db.ref("calls").on("child_added",s=>{
     let c=s.val();
-    if(c.to===me&&c.status==="ringing"&&enableCall){callId=s.key;callFrom.textContent="Call from "+c.from;incoming.style.display="flex";}
+    if(c.to===uid&&c.status==="ringing"&&enableCall){callId=s.key;callFrom.textContent="Call from "+c.from;incoming.style.display="flex";}
   });
   db.ref("calls").on("child_changed",s=>{
     let c=s.val();
-    if(c.status==="answered")startWebRTC(c.from===me);
+    if(c.status==="answered")startWebRTC(c.from===uid);
     if(c.status==="ended")stopCall();
   });
 }
