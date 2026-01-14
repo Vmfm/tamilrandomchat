@@ -61,6 +61,7 @@ body{
  border-radius:12px;
  overflow:hidden;
  font-size:12px; /* smaller controls */
+ margin-bottom:10px;
 }
 
 /* APK BUTTON */
@@ -149,6 +150,22 @@ body{
  font-size:10px;
  color:var(--accent);
  text-align:center;
+}
+/* PLAY BUTTONS ON CHANNEL */
+.play-buttons{
+ display:flex;
+ justify-content:center;
+ gap:5px;
+ margin-top:5px;
+}
+.play-buttons button{
+ font-size:10px;
+ padding:3px 6px;
+ border:none;
+ border-radius:6px;
+ cursor:pointer;
+ background:var(--accent);
+ color:#000;
 }
 
 /* POP PLAYER */
@@ -266,10 +283,15 @@ function render(){
  .forEach(x=>{
   $('#channelList').append(`
   <div class="col-4 col-md-2">
-   <div class="channel" data-src="${x.url}" data-name="${x.name}">
+   <div class="channel">
     <img src="${x.logo}">
     <p>${x.name}</p>
     <div class="views">👁 ${(views[x.name]||0)}</div>
+    <div class="play-buttons">
+      <button data-player="0" data-src="${x.url}" data-name="${x.name}">P1</button>
+      <button data-player="1" data-src="${x.url}" data-name="${x.name}">P2</button>
+      <button data-player="2" data-src="${x.url}" data-name="${x.name}">P3</button>
+    </div>
    </div>
   </div>`);
  });
@@ -277,19 +299,15 @@ function render(){
 
 $('#search,#category').on('input change',render);
 
-// Click channel to play in all players
-$(document).on('click','.channel',function(){
- const n=$(this).data('name');
- const url=$(this).data('src');
- views[n]=(views[n]||0)+1;
+// Play channel in selected player
+$(document).on('click','.play-buttons button',function(){
+ const playerIndex = $(this).data('player');
+ const url = $(this).data('src');
+ const name = $(this).data('name');
+ views[name]=(views[name]||0)+1;
  localStorage.setItem('views',JSON.stringify(views));
- // Example: play in all three players (or pick one if you want)
- players[0].src({src:url,type:'application/x-mpegURL'});
- players[0].play();
- players[1].src({src:url,type:'application/x-mpegURL'});
- players[1].play();
- players[2].src({src:url,type:'application/x-mpegURL'});
- players[2].play();
+ players[playerIndex].src({src:url,type:'application/x-mpegURL'});
+ players[playerIndex].play();
  render();
  window.scrollTo({top:0,behavior:'smooth'});
 });
