@@ -1,73 +1,118 @@
 <!DOCTYPE html>
-<html>
+<html lang="en">
 <head>
-<meta charset="utf-8">
+<meta charset="UTF-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
-<title>Tamil Chat App</title>
-
+<title>Tamil Chat – Voice Call</title>
 <style>
+:root {--muted:#aaa}
 body{margin:0;font-family:Arial;background:#0b141a;color:#fff}
-.hidden{display:none}
-#login,#panel,#reportBox{position:fixed;inset:0;background:#000b;display:flex;align-items:center;justify-content:center;z-index:99}
-.card{background:#111;padding:15px;border-radius:10px;width:95%;max-width:420px}
-#top{background:#202c33;padding:10px;display:flex;align-items:center;justify-content:space-between}
-#chat,#privateChat{height:calc(100vh - 120px);overflow:auto;padding:10px}
-.msg{background:#2a3942;margin:5px 0;padding:8px;border-radius:8px;max-width:80%}
+#login,#incoming{position:fixed;inset:0;background:#000c;display:flex;align-items:center;justify-content:center;z-index:99}
+.card{background:#111;padding:20px;border-radius:12px;width:90%;max-width:420px}
+#top{background:#202c33;padding:10px;display:flex;justify-content:space-between;align-items:center}
+#chat,#pchat{height:calc(100vh - 120px);overflow:auto;padding:10px}
+.msg{background:#2a3942;margin:6px 0;padding:8px 10px;border-radius:10px;max-width:80%}
 .self{background:#005c4b;margin-left:auto}
-.badge{background:red;color:#fff;font-size:11px;padding:2px 6px;border-radius:10px}
-.user{padding:8px;border-bottom:1px solid #222;display:flex;justify-content:space-between}
-input,button{padding:8px;border-radius:6px;border:0}
-button{background:#25d366}
-img{border-radius:50%}
+#input{display:flex;padding:8px;background:#202c33}
+#input input{flex:1;border:0;border-radius:20px;padding:8px;background:#2a3942;color:#fff}
+#input button{margin-left:8px;border:0;border-radius:50%;width:40px;background:#25d366}
+#private{position:fixed;inset:0;background:#000b;display:none;flex-direction:column}
+#callBar{position:fixed;bottom:20px;left:50%;transform:translateX(-50%);
+background:#000c;padding:10px 14px;border-radius:20px;display:none;gap:8px;align-items:center}
+#callBar button{border:0;border-radius:12px;padding:6px 10px}
+#notifWrap{display:flex;align-items:center;gap:10px;margin-left:auto}
+.bell{position:relative;cursor:pointer;font-size:24px}
+.badge{position:absolute;top:-6px;right:-6px;background:red;color:#fff;border-radius:50%;font-size:12px;width:18px;height:18px;display:flex;align-items:center;justify-content:center}
+#settingsWrap{position:relative}
+#settingsPanel{position:absolute;top:28px;right:0;background:#111;border:1px solid #333;padding:10px;border-radius:8px;display:none;width:180px;z-index:50}
+.settingRow{display:flex;justify-content:space-between;align-items:center;margin-bottom:6px}
+.toggleBtn{width:40px;height:20px;background:#555;border-radius:10px;position:relative;cursor:pointer}
+.toggleKnob{width:18px;height:18px;background:#fff;border-radius:50%;position:absolute;top:1px;left:1px;transition:0.2s}
+.toggleBtn.on .toggleKnob{left:21px;background:#25d366}
 </style>
 </head>
-
 <body>
 
 <div id="login">
   <div class="card">
-    <h3>Enter Name</h3>
+    <h3>Enter Your Name</h3>
     <input id="name">
     <button onclick="join()">Join</button>
   </div>
 </div>
 
-<div id="panel" class="hidden">
+<div id="incoming" style="display:none">
   <div class="card">
-    <h3>Settings</h3>
-    <label><input type="checkbox" id="allowCalls" checked> Allow Calls</label><br>
-    <label><input type="checkbox" id="allowPrivate" checked> Allow Private Chat</label><br><br>
-    <button onclick="panel.classList.add('hidden')">Close</button>
-  </div>
-</div>
-
-<div id="reportBox" class="hidden">
-  <div class="card">
-    <h3>Report User</h3>
-    <textarea id="reportText" style="width:100%"></textarea><br>
-    <button onclick="sendReport()">Submit</button>
+    <h3 id="callFrom"></h3>
+    <button onclick="acceptCall()">Accept</button>
+    <button onclick="declineCall()">Decline</button>
   </div>
 </div>
 
 <div id="top">
   <b>Tamil Group Chat</b>
-  <div>
-    <span id="notify">🔔<span id="badge" class="badge hidden">0</span></span>
-    <button onclick="panel.classList.remove('hidden')">⚙️</button>
+  <div id="notifWrap">
+    <!-- Bell badge -->
+    <div class="bell" id="bellBtn" title="Private messages">🔔
+      <div class="badge" id="bellBadge" style="display:none">0</div>
+    </div>
+
+    <!-- Settings -->
+    <div id="settingsWrap">
+      <button id="settingsBtn">⚙️</button>
+      <div id="settingsPanel" role="dialog" aria-label="Settings">
+        <div class="settingRow">
+          <div>Audio Call</div>
+          <div class="toggleBtn on" id="toggleCall"><div class="toggleKnob" id="toggleCallKnob"></div></div>
+        </div>
+        <div class="settingRow">
+          <div>Private Chat</div>
+          <div class="toggleBtn on" id="togglePrivate"><div class="toggleKnob" id="togglePrivateKnob"></div></div>
+        </div>
+        <div class="settingRow">
+          <div>Profile Image</div>
+          <input type="file" id="profileImgInput" accept="image/*" style="color:#fff;font-size:12px">
+        </div>
+        <div class="settingRow">
+          <div></div>
+          <div style="font-size:12px;color:var(--muted)">Your image is saved to your profile.</div>
+        </div>
+      </div>
+    </div>
   </div>
 </div>
 
 <div id="chat"></div>
 
-<div style="display:flex;padding:8px">
-  <input id="msg" style="flex:1">
-  <button onclick="send()">Send</button>
+<div id="input">
+  <input id="msg" placeholder="Message">
+  <button onclick="send()">➤</button>
 </div>
 
-<div id="privateBox" class="hidden">
-  <div id="privateChat"></div>
-  <input id="pmsg"><button onclick="sendPrivate()">Send</button>
+<div id="private">
+  <div id="top">
+    <b id="ptitle"></b>
+    <div>
+      <button onclick="startCall()">📞</button>
+      <button onclick="closePrivate()">✕</button>
+    </div>
+  </div>
+  <div id="pchat"></div>
+  <div id="input">
+    <input id="pmsg">
+    <button onclick="sendPrivate()">➤</button>
+  </div>
 </div>
+
+<div id="callBar">
+  <span id="callWith"></span>
+  <span id="callTime">00:00</span>
+  <button onclick="toggleMute()">🎤</button>
+  <button onclick="toggleSpeaker()">🔊</button>
+  <button onclick="endCall()">End</button>
+</div>
+
+<audio id="remoteAudio" autoplay playsinline></audio>
 
 <!-- Firebase -->
 <script src="https://www.gstatic.com/firebasejs/8.10.0/firebase-app.js"></script>
@@ -75,114 +120,213 @@ img{border-radius:50%}
 <script src="https://www.gstatic.com/firebasejs/8.10.0/firebase-storage.js"></script>
 
 <script>
+/* ================= FIREBASE CONFIG ================= */
 firebase.initializeApp({
- apiKey:"AIzaSyB1VbLbqBxCiG_bfGoQgQyapXwHUQ-Q7BU",
- databaseURL:"https://tamil-chat-2d54e-default-rtdb.firebaseio.com",
- projectId:"tamil-chat-2d54e",
- storageBucket:"tamil-chat-2d54e.appspot.com"
+  apiKey: "AIzaSyB1VbLbqBxCiG_bfGoQgQyapXwHUQ-Q7BU",
+  authDomain: "tamil-chat-2d54e.firebaseapp.com",
+  databaseURL: "https://tamil-chat-2d54e-default-rtdb.firebaseio.com",
+  projectId: "tamil-chat-2d54e",
+  storageBucket: "tamil-chat-2d54e.appspot.com",
+  messagingSenderId: "804705969240",
+  appId: "1:804705969240:web:658df281dd8360843c162d"
 });
+const db = firebase.database();
+const storage = firebase.storage();
 
-const db=firebase.database(),st=firebase.storage();
-let me=localStorage.name||"",privateWith="",unread=0,blocked=[];
+/* ================= STATE ================= */
+let me = localStorage.name || "";
+let withUser = "";
+let callId = "";
+let pc, localStream;
+let muted=false, speaker=true, timer;
+let enableCall=true, enablePrivate=true;
+let unread = 0;
 
-/* LOGIN */
-if(me)login.style.display="none",init();
-function join(){me=name.value.trim();if(!me)return;localStorage.name=me;login.style.display="none";init();}
-
-/* PRESENCE */
-function init(){
- db.ref("presence/"+me).set(true);
- db.ref("presence/"+me).onDisconnect().remove();
- listenGroup(); listenTyping(); listenCalls();
+/* ================= LOGIN ================= */
+if(me){login.style.display="none";init();}
+function join(){
+  me=name.value.trim(); if(!me)return;
+  localStorage.name=me;
+  login.style.display="none";
+  init();
 }
 
-/* GROUP CHAT */
+/* ================= INIT ================= */
+function init(){
+  db.ref("presence/"+me).set(true);
+  db.ref("presence/"+me).onDisconnect().remove();
+  listenGroup();
+  listenCalls();
+}
+
+/* ================= GROUP CHAT ================= */
 function listenGroup(){
- db.ref("group").limitToLast(100).on("child_added",s=>{
-  let m=s.val(); if(blocked.includes(m.name))return;
-  let d=document.createElement("div");
-  d.className="msg"+(m.name===me?" self":"");
-  d.innerHTML="<b>"+m.name+"</b>: "+m.text;
-  d.onclick=()=>openPrivate(m.name);
-  chat.appendChild(d); chat.scrollTop=99999;
- });
+  db.ref("group").limitToLast(100).on("child_added",s=>{
+    let m=s.val();
+    let d=document.createElement("div");
+    d.className="msg"+(m.name===me?" self":"");
+    d.textContent=m.name+": "+m.text;
+    d.onclick=()=>openPrivate(m.name);
+    chat.appendChild(d);
+    chat.scrollTop=99999;
+  });
 }
 function send(){
- if(!msg.value)return;
- db.ref("group").push({name:me,text:msg.value,time:Date.now()});
- msg.value="";
+  if(!msg.value)return;
+  db.ref("group").push({name:me,text:msg.value,time:Date.now()});
+  msg.value="";
 }
 
-/* TYPING */
-msg.oninput=()=>db.ref("typing/group/"+me).set(true);
-function listenTyping(){
- db.ref("typing/group").on("value",s=>{});
-}
-
-/* PRIVATE CHAT */
+/* ================= PRIVATE CHAT + UNREAD ================= */
 function openPrivate(u){
- if(u===me)return;
- privateWith=u;
- privateChat.innerHTML="";
- privateBox.classList.remove("hidden");
- db.ref("private/"+[me,u].sort().join("_")).on("child_added",s=>{
-  let m=s.val(); if(blocked.includes(m.name))return;
-  let d=document.createElement("div");
-  d.className="msg"+(m.name===me?" self":"");
-  d.textContent=m.text;
-  privateChat.appendChild(d); privateChat.scrollTop=99999;
- });
+  if(u===me || !enablePrivate)return;
+  withUser=u;
+  ptitle.textContent="Chat with "+u;
+  pchat.innerHTML="";
+  private.style.display="flex";
+  unread=0; updateBadge();
+  db.ref("private/"+[me,u].sort().join("_"))
+    .limitToLast(100)
+    .on("child_added",s=>{
+      let m=s.val();
+      let d=document.createElement("div");
+      d.className="msg"+(m.name===me?" self":"");
+      d.textContent=m.text;
+      pchat.appendChild(d);
+      pchat.scrollTop=99999;
+    });
 }
+function closePrivate(){private.style.display="none";}
 function sendPrivate(){
- if(!pmsg.value)return;
- db.ref("private/"+[me,privateWith].sort().join("_"))
- .push({name:me,text:pmsg.value,time:Date.now()});
- pmsg.value="";
+  if(!pmsg.value || !enablePrivate)return;
+  db.ref("private/"+[me,withUser].sort().join("_"))
+    .push({name:me,text:pmsg.value,time:Date.now()});
+  pmsg.value="";
 }
-
-/* UNREAD */
-db.ref("notifications/"+me).on("child_added",()=>{
- unread++; badge.textContent=unread; badge.classList.remove("hidden");
+db.ref("private").on("child_added",s=>{
+  let key=s.key;
+  if(key.includes(me)){
+    s.ref.limitToLast(1).once("child_added").then(c=>{
+      let msg=c.val();
+      if(msg.name!==me){unread++; updateBadge();}
+    });
+  }
 });
-
-/* BLOCK */
-function block(u){blocked.push(u); db.ref("blocks/"+me+"/"+u).set(true);}
-function unblock(u){blocked=blocked.filter(x=>x!==u); db.ref("blocks/"+me+"/"+u).remove();}
-
-/* REPORT + AUTO BAN */
-function report(u){
- reportBox.classList.remove("hidden");
- window.reportUser=u;
+function updateBadge(){
+  bellBadge.style.display=unread>0?"flex":"none";
+  bellBadge.textContent=unread;
 }
-function sendReport(){
- db.ref("reports/"+reportUser).push({by:me,text:reportText.value});
- reportBox.classList.add("hidden");
-}
-db.ref("reports").on("child_added",s=>{
- if(s.numChildren()>3)db.ref("banned/"+s.key).set(true);
-});
 
-/* CALL SIGNALING */
-function call(u){
- db.ref("calls").push({from:me,to:u,status:"ring"});
+/* ================= SETTINGS ================= */
+settingsBtn.onclick=()=>settingsPanel.style.display=(settingsPanel.style.display==="flex"?"none":"flex");
+toggleCall.onclick=()=>{
+  enableCall= !enableCall;
+  toggleCall.classList.toggle("on");
+}
+togglePrivate.onclick=()=>{
+  enablePrivate= !enablePrivate;
+  togglePrivate.classList.toggle("on");
+}
+/* ================= PROFILE IMAGE UPLOAD ================= */
+profileImgInput.onchange=e=>{
+  const file=e.target.files[0];
+  if(!file)return;
+  const ref=storage.ref("profiles/"+me);
+  ref.put(file).then(()=>console.log("Profile uploaded"));
+}
+
+/* ================= CALL SIGNALING ================= */
+function startCall(){
+  if(!enableCall)return;
+  callId=[me,withUser].sort().join("_")+"_"+Date.now();
+  db.ref("calls/"+callId).set({from:me,to:withUser,status:"ringing"});
 }
 function listenCalls(){
- db.ref("calls").on("child_added",s=>{
-  let c=s.val();
-  if(c.to===me && c.status==="ring"){
-   if(confirm("Call from "+c.from)){
-    db.ref("calls/"+s.key+"/status").set("accept");
-   }else db.ref("calls/"+s.key+"/status").set("decline");
-  }
- });
+  db.ref("calls").on("child_added",s=>{
+    let c=s.val();
+    if(c.to===me && c.status==="ringing" && enableCall){
+      callId=s.key;
+      callFrom.textContent="Call from "+c.from;
+      incoming.style.display="flex";
+    }
+  });
+  db.ref("calls").on("child_changed",s=>{
+    let c=s.val();
+    if(c.status==="answered")startWebRTC(c.from===me);
+    if(c.status==="ended")stopCall();
+  });
+}
+function acceptCall(){
+  db.ref("calls/"+callId+"/status").set("answered");
+  incoming.style.display="none";
+}
+function declineCall(){
+  db.ref("calls/"+callId+"/status").set("ended");
+  incoming.style.display="none";
 }
 
-/* PROFILE IMAGE */
-function uploadPic(file){
- st.ref("profiles/"+me).put(file).then(r=>r.ref.getDownloadURL()
- .then(url=>db.ref("profiles/"+me).set(url)));
+/* ================= WEBRTC REAL AUDIO ================= */
+async function startWebRTC(isCaller){
+  localStream=await navigator.mediaDevices.getUserMedia({audio:true});
+  pc=new RTCPeerConnection({iceServers:[{urls:"stun:stun.l.google.com:19302"}]});
+  localStream.getTracks().forEach(t=>pc.addTrack(t,localStream));
+  pc.ontrack=e=>remoteAudio.srcObject=e.streams[0];
+  pc.onicecandidate=e=>{
+    if(e.candidate)
+      db.ref("calls/"+callId+"/ice").push(JSON.stringify(e.candidate));
+  };
+  db.ref("calls/"+callId+"/ice").on("child_added",s=>{
+    pc.addIceCandidate(new RTCIceCandidate(JSON.parse(s.val()))).catch(()=>{});
+  });
+
+  if(isCaller){
+    let o=await pc.createOffer();
+    await pc.setLocalDescription(o);
+    db.ref("calls/"+callId+"/offer").set(JSON.stringify(o));
+  }else{
+    db.ref("calls/"+callId+"/offer").once("value").then(async s=>{
+      await pc.setRemoteDescription(JSON.parse(s.val()));
+      let a=await pc.createAnswer();
+      await pc.setLocalDescription(a);
+      db.ref("calls/"+callId+"/answer").set(JSON.stringify(a));
+    });
+  }
+  db.ref("calls/"+callId+"/answer").on("value",s=>{
+    if(s.val() && !pc.currentRemoteDescription)
+      pc.setRemoteDescription(JSON.parse(s.val())).catch(()=>{});
+  });
+  startCallUI();
+}
+
+/* ================= CALL UI ================= */
+function startCallUI(){
+  callBar.style.display="flex";
+  callWith.textContent=withUser;
+  let start=Date.now();
+  timer=setInterval(()=>{
+    let d=Date.now()-start;
+    callTime.textContent=
+      String(Math.floor(d/60000)).padStart(2,"0")+":"+
+      String(Math.floor(d%60000/1000)).padStart(2,"0");
+  },1000);
+}
+function toggleMute(){
+  muted=!muted;
+  localStream.getAudioTracks()[0].enabled=!muted;
+}
+function toggleSpeaker(){
+  speaker=!speaker;
+  remoteAudio.muted=!speaker;
+}
+function endCall(){
+  db.ref("calls/"+callId+"/status").set("ended");
+}
+function stopCall(){
+  if(pc)pc.close();
+  if(localStream)localStream.getTracks().forEach(t=>t.stop());
+  clearInterval(timer);
+  callBar.style.display="none";
 }
 </script>
-
 </body>
 </html>
