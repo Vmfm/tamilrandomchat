@@ -1,226 +1,188 @@
 <!DOCTYPE html>
-<html lang="en">
+<html>
 <head>
-<meta charset="UTF-8">
-<meta name="viewport" content="width=device-width,initial-scale=1.0">
-<title>Tamil VM Chat – Full Version</title>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Tamil Chat App</title>
+
 <style>
-:root{--bg:#111b21;--panel:#202c33;--accent:#25d366;--muted:#97a4ab}
-*{box-sizing:border-box;margin:0;padding:0;font-family:Arial,system-ui}
-body{background:var(--bg);color:#fff;display:flex;flex-direction:column;min-height:100vh}
-#app{max-width:1100px;margin:0 auto;width:100%;flex:1;display:flex;flex-direction:column;position:relative}
-#topBar{padding:8px 12px;background:#0b141a;display:flex;align-items:center;gap:12px;z-index:5;position:relative}
-#title{font-weight:600;display:flex;align-items:center;gap:10px}
-#notifWrap{display:flex;align-items:center;gap:12px;margin-left:auto;position:relative}
-.bell{position:relative;cursor:pointer;font-size:18px}
-.badge{position:absolute;top:-6px;right:-6px;background:#ff3b30;color:#fff;font-size:10px;padding:2px 5px;border-radius:50%;font-weight:700}
-#settingsWrap{position:relative}
-#settingsBtn{background:none;border:none;color:#fff;font-size:18px;cursor:pointer}
-#settingsPanel{position:absolute;top:32px;right:0;background:var(--panel);padding:12px;border-radius:8px;display:none;flex-direction:column;gap:8px;min-width:180px;z-index:100;box-shadow:0 2px 8px rgba(0,0,0,.6)}
-.settingRow{display:flex;justify-content:space-between;align-items:center}
-.toggleBtn{width:36px;height:18px;background:#555;border-radius:9px;position:relative;cursor:pointer}
-.toggleKnob{width:16px;height:16px;background:#fff;border-radius:50%;position:absolute;top:1px;left:1px;transition:0.2s}
-.toggleBtn.active .toggleKnob{left:19px}
-#messages{flex:1;overflow:auto;padding:12px;display:flex;flex-direction:column;gap:8px;background:#071215}
-.msg-row{display:flex;align-items:flex-end;max-width:80%;position:relative}
-.msg-row.self{align-self:flex-end;flex-direction:row-reverse}
-.avatar{width:36px;height:36px;border-radius:50%;background:#000;color:#fff;display:flex;align-items:center;justify-content:center;font-weight:700;margin:0 8px;position:relative;cursor:pointer;border:2px solid transparent;transition:border .18s ease-in-out;overflow:hidden}
-.avatar.online{border-color:var(--accent);box-shadow:0 0 0 0 rgba(37,211,102,.6);animation:pulse 1.5s infinite}
-@keyframes pulse{0%{box-shadow:0 0 0 0 rgba(37,211,102,.6)}70%{box-shadow:0 0 0 6px rgba(37,211,102,0)}100%{box-shadow:0 0 0 0 rgba(37,211,102,0)}}
-.bubble{background:var(--panel);padding:8px 12px;border-radius:12px;font-size:14px;line-height:1.3;word-break:break-word}
-.msg-row.self .bubble{background:#005c4b}
-.time{font-size:11px;color:var(--muted);margin-top:6px;text-align:right}
-#inputBar{display:flex;padding:10px;background:var(--panel);align-items:center;gap:8px}
-#messageInput{flex:1;padding:10px;border-radius:22px;border:0;background:#2a3942;color:#fff;outline:none;font-size:14px}
-#sendBtn{width:44px;height:44px;border-radius:50%;border:0;background:var(--accent);color:#fff;font-size:18px;cursor:pointer}
-
-/* Private chat */
-#privatePopup{position:fixed;inset:0;display:none;align-items:center;justify-content:center;background:rgba(0,0,0,.6);z-index:1000}
-.card{background:#0b141a;padding:12px;border-radius:12px;max-width:680px;width:96%;display:flex;flex-direction:column;max-height:92%}
-#privateHeader{display:flex;align-items:center;gap:8px;margin-bottom:8px}
-#privateMessages{flex:1;overflow:auto;padding:8px;background:#071215;border-radius:8px;display:flex;flex-direction:column;gap:8px}
-.private-bubble{background:#162027;padding:8px 10px;border-radius:10px;max-width:80%}
-.private-row.self{align-self:flex-end}
-#privateInputBar{display:flex;gap:8px;margin-top:8px}
-#privateInput{flex:1;padding:10px;border-radius:22px;border:0;background:#2a3942;color:#fff}
-#privateSend{width:44px;height:44px;border-radius:50%;border:0;background:var(--accent);color:#fff;font-size:18px;cursor:pointer}
-#typingPrivate{font-size:13px;color:var(--muted);margin-left:8px}
-
-/* Call overlay */
-#callOverlay{position:fixed;inset:0;display:none;align-items:center;justify-content:center;background:rgba(0,0,0,.75);z-index:10000;flex-direction:column;color:#fff}
-.callCard{background:#071215;padding:32px;border-radius:12px;display:flex;flex-direction:column;align-items:center;gap:14px;min-width:320px}
-.callName{font-size:20px;font-weight:700}
-.callBtns{display:flex;gap:16px}
-.btnCall{padding:12px 18px;border-radius:10px;border:0;font-weight:700;cursor:pointer}
-.btnAccept{background:var(--accent);color:#071215}
-.btnDecline{background:#ff3b30;color:#fff}
-#inCallBar{position:fixed;left:50%;transform:translateX(-50%);bottom:22px;background:rgba(0,0,0,.6);padding:8px 12px;border-radius:20px;color:#fff;display:none;z-index:10001;align-items:center;gap:10px}
-#endCallBtn{background:#ff3b30;border:0;color:#fff;padding:8px 12px;border-radius:12px;cursor:pointer}
-
-/* Login */
-#loginWrap{position:fixed;inset:0;display:flex;align-items:center;justify-content:center;background:rgba(0,0,0,.6);z-index:999}
-#loginCard{background:#0b141a;padding:18px;border-radius:12px;display:flex;flex-direction:column;gap:10px;min-width:300px}
-#loginCard input{padding:10px;border-radius:10px;border:0;background:#162027;color:#fff}
-#loginCard button{padding:10px;border-radius:10px;border:0;background:var(--accent);color:#fff;cursor:pointer}
+body{margin:0;font-family:Arial;background:#0b141a;color:#fff}
+.hidden{display:none}
+#login,#panel,#reportBox{position:fixed;inset:0;background:#000b;display:flex;align-items:center;justify-content:center;z-index:99}
+.card{background:#111;padding:15px;border-radius:10px;width:95%;max-width:420px}
+#top{background:#202c33;padding:10px;display:flex;align-items:center;justify-content:space-between}
+#chat,#privateChat{height:calc(100vh - 120px);overflow:auto;padding:10px}
+.msg{background:#2a3942;margin:5px 0;padding:8px;border-radius:8px;max-width:80%}
+.self{background:#005c4b;margin-left:auto}
+.badge{background:red;color:#fff;font-size:11px;padding:2px 6px;border-radius:10px}
+.user{padding:8px;border-bottom:1px solid #222;display:flex;justify-content:space-between}
+input,button{padding:8px;border-radius:6px;border:0}
+button{background:#25d366}
+img{border-radius:50%}
 </style>
 </head>
+
 <body>
-<div id="app">
-  <div id="topBar">
-    <div id="title">Group Chat</div>
 
-    <!-- Notification & Settings -->
-    <div id="notifWrap">
-      <div class="bell" id="bellBtn" title="Private messages">🔔
-        <div class="badge" id="bellBadge" style="display:none">0</div>
-      </div>
-
-      <div id="settingsWrap">
-        <button id="settingsBtn">⚙️</button>
-        <div id="settingsPanel" role="dialog" aria-label="Settings">
-          <div class="settingRow">
-            <div>Audio Call</div>
-            <div class="toggleBtn" id="toggleCall"><div class="toggleKnob" id="toggleCallKnob"></div></div>
-          </div>
-          <div class="settingRow">
-            <div>Private Chat</div>
-            <div class="toggleBtn" id="togglePrivate"><div class="toggleKnob" id="togglePrivateKnob"></div></div>
-          </div>
-          <div class="settingRow">
-            <div>Profile Image</div>
-            <input type="file" id="profileImgInput" accept="image/*" style="color:#fff;font-size:12px">
-          </div>
-          <div class="settingRow">
-            <div></div>
-            <div style="font-size:12px;color:var(--muted)">Your image is saved to your profile.</div>
-          </div>
-        </div>
-      </div>
-    </div>
-
-    <div id="onlineCount" style="color:var(--muted);font-size:13px;margin-left:12px"></div>
-  </div>
-
-  <div id="messages"></div>
-  <div id="inputBar">
-    <input id="messageInput" placeholder="Type a message">
-    <button id="sendBtn">✈️</button>
-  </div>
-</div>
-
-<!-- Login -->
-<div id="loginWrap">
-  <div id="loginCard">
-    <div style="font-weight:700;color:#fff">Enter your name</div>
-    <input id="nameInput" placeholder="Your name" />
-    <button id="joinBtn">Join</button>
-  </div>
-</div>
-
-<!-- Private Chat -->
-<div id="privatePopup">
+<div id="login">
   <div class="card">
-    <div id="privateHeader">
-      <button id="closePrivate">⬅</button>
-      <div style="flex:1;font-weight:700" id="privateTitle">Private Chat</div>
-      <button id="callBtn">📞</button>
-    </div>
-    <div id="privateMessages"></div>
-    <div id="privateInputBar">
-      <input id="privateInput" placeholder="Type a private message">
-      <button id="privateSend">✈️</button>
-    </div>
+    <h3>Enter Name</h3>
+    <input id="name">
+    <button onclick="join()">Join</button>
   </div>
 </div>
 
-<!-- Call Overlay -->
-<div id="callOverlay">
-  <div class="callCard">
-    <div class="callName" id="callFrom">Caller</div>
-    <div class="callBtns">
-      <button class="btnCall btnDecline" id="declineCallBtn">Decline</button>
-      <button class="btnCall btnAccept" id="acceptCallBtn">Accept</button>
-    </div>
+<div id="panel" class="hidden">
+  <div class="card">
+    <h3>Settings</h3>
+    <label><input type="checkbox" id="allowCalls" checked> Allow Calls</label><br>
+    <label><input type="checkbox" id="allowPrivate" checked> Allow Private Chat</label><br><br>
+    <button onclick="panel.classList.add('hidden')">Close</button>
   </div>
 </div>
-<div id="inCallBar">
-  <span id="inCallWith"></span>
-  <button id="endCallBtn">End</button>
+
+<div id="reportBox" class="hidden">
+  <div class="card">
+    <h3>Report User</h3>
+    <textarea id="reportText" style="width:100%"></textarea><br>
+    <button onclick="sendReport()">Submit</button>
+  </div>
+</div>
+
+<div id="top">
+  <b>Tamil Group Chat</b>
+  <div>
+    <span id="notify">🔔<span id="badge" class="badge hidden">0</span></span>
+    <button onclick="panel.classList.remove('hidden')">⚙️</button>
+  </div>
+</div>
+
+<div id="chat"></div>
+
+<div style="display:flex;padding:8px">
+  <input id="msg" style="flex:1">
+  <button onclick="send()">Send</button>
+</div>
+
+<div id="privateBox" class="hidden">
+  <div id="privateChat"></div>
+  <input id="pmsg"><button onclick="sendPrivate()">Send</button>
 </div>
 
 <!-- Firebase -->
 <script src="https://www.gstatic.com/firebasejs/8.10.0/firebase-app.js"></script>
 <script src="https://www.gstatic.com/firebasejs/8.10.0/firebase-database.js"></script>
+<script src="https://www.gstatic.com/firebasejs/8.10.0/firebase-storage.js"></script>
 
 <script>
-const firebaseConfig = {
-  apiKey: "AIzaSyB1VbLbqBxCiG_bfGoQgQyapXwHUQ-Q7BU",
-  authDomain: "tamil-chat-2d54e.firebaseapp.com",
-  databaseURL: "https://tamil-chat-2d54e-default-rtdb.firebaseio.com",
-  projectId: "tamil-chat-2d54e",
-  storageBucket: "tamil-chat-2d54e.appspot.com",
-  messagingSenderId: "804705969240",
-  appId: "1:804705969240:web:658df281dd8360843c162d"
-};
-firebase.initializeApp(firebaseConfig);
-const db = firebase.database();
+firebase.initializeApp({
+ apiKey:"AIzaSyB1VbLbqBxCiG_bfGoQgQyapXwHUQ-Q7BU",
+ databaseURL:"https://tamil-chat-2d54e-default-rtdb.firebaseio.com",
+ projectId:"tamil-chat-2d54e",
+ storageBucket:"tamil-chat-2d54e.appspot.com"
+});
 
-let username = '';
-let privateChatWith = null;
-let localStream = null;
-let pc = null;
-let callId = null;
+const db=firebase.database(),st=firebase.storage();
+let me=localStorage.name||"",privateWith="",unread=0,blocked=[];
 
-/* ----------------- Login ----------------- */
-document.getElementById('joinBtn').onclick = () => {
-  const n = document.getElementById('nameInput').value.trim();
-  if(!n) return alert('Enter a name');
-  username = n;
-  localStorage.setItem('guestName', username);
-  document.getElementById('loginWrap').style.display='none';
-  db.ref(`status/${username}`).set(true);
-  db.ref(`status/${username}`).onDisconnect().remove();
-  startGroupListeners();
-  watchPrivateChats();
-};
+/* LOGIN */
+if(me)login.style.display="none",init();
+function join(){me=name.value.trim();if(!me)return;localStorage.name=me;login.style.display="none";init();}
 
-/* Toggle Settings Panel */
-const settingsBtn = document.getElementById('settingsBtn');
-const settingsPanel = document.getElementById('settingsPanel');
-settingsBtn.onclick = ()=>{ settingsPanel.style.display=settingsPanel.style.display==='flex'?'none':'flex'; };
-
-/* ----------------- Group chat ----------------- */
-const messagesEl = document.getElementById('messages');
-const messageInput = document.getElementById('messageInput');
-const sendBtn = document.getElementById('sendBtn');
-
-sendBtn.onclick = sendGroupMessage;
-messageInput.addEventListener('keypress', e=>{if(e.key==='Enter'){sendGroupMessage();}});
-
-function sendGroupMessage(){
-  const text = messageInput.value.trim();
-  if(!text) return;
-  db.ref('messages').push({name: username, text, time: Date.now()});
-  messageInput.value='';
+/* PRESENCE */
+function init(){
+ db.ref("presence/"+me).set(true);
+ db.ref("presence/"+me).onDisconnect().remove();
+ listenGroup(); listenTyping(); listenCalls();
 }
 
-function startGroupListeners(){
-  const ref = db.ref('messages').limitToLast(50);
-  ref.on('child_added', snap=>{
-    const data = snap.val();
-    const row = document.createElement('div');
-    row.className='msg-row'+(data.name===username?' self':'');
-    const bubble = document.createElement('div'); bubble.className='bubble'; bubble.textContent=data.name+': '+data.text;
-    row.appendChild(bubble);
-    messagesEl.appendChild(row);
-    messagesEl.scrollTop = messagesEl.scrollHeight;
-  });
+/* GROUP CHAT */
+function listenGroup(){
+ db.ref("group").limitToLast(100).on("child_added",s=>{
+  let m=s.val(); if(blocked.includes(m.name))return;
+  let d=document.createElement("div");
+  d.className="msg"+(m.name===me?" self":"");
+  d.innerHTML="<b>"+m.name+"</b>: "+m.text;
+  d.onclick=()=>openPrivate(m.name);
+  chat.appendChild(d); chat.scrollTop=99999;
+ });
+}
+function send(){
+ if(!msg.value)return;
+ db.ref("group").push({name:me,text:msg.value,time:Date.now()});
+ msg.value="";
 }
 
-/* ----------------- Private Chat & Voice Call ----------------- */
-/* Previous private chat + WebRTC logic remains same as before */
-/* For brevity, include your previous private chat + call JS here */
+/* TYPING */
+msg.oninput=()=>db.ref("typing/group/"+me).set(true);
+function listenTyping(){
+ db.ref("typing/group").on("value",s=>{});
+}
 
+/* PRIVATE CHAT */
+function openPrivate(u){
+ if(u===me)return;
+ privateWith=u;
+ privateChat.innerHTML="";
+ privateBox.classList.remove("hidden");
+ db.ref("private/"+[me,u].sort().join("_")).on("child_added",s=>{
+  let m=s.val(); if(blocked.includes(m.name))return;
+  let d=document.createElement("div");
+  d.className="msg"+(m.name===me?" self":"");
+  d.textContent=m.text;
+  privateChat.appendChild(d); privateChat.scrollTop=99999;
+ });
+}
+function sendPrivate(){
+ if(!pmsg.value)return;
+ db.ref("private/"+[me,privateWith].sort().join("_"))
+ .push({name:me,text:pmsg.value,time:Date.now()});
+ pmsg.value="";
+}
+
+/* UNREAD */
+db.ref("notifications/"+me).on("child_added",()=>{
+ unread++; badge.textContent=unread; badge.classList.remove("hidden");
+});
+
+/* BLOCK */
+function block(u){blocked.push(u); db.ref("blocks/"+me+"/"+u).set(true);}
+function unblock(u){blocked=blocked.filter(x=>x!==u); db.ref("blocks/"+me+"/"+u).remove();}
+
+/* REPORT + AUTO BAN */
+function report(u){
+ reportBox.classList.remove("hidden");
+ window.reportUser=u;
+}
+function sendReport(){
+ db.ref("reports/"+reportUser).push({by:me,text:reportText.value});
+ reportBox.classList.add("hidden");
+}
+db.ref("reports").on("child_added",s=>{
+ if(s.numChildren()>3)db.ref("banned/"+s.key).set(true);
+});
+
+/* CALL SIGNALING */
+function call(u){
+ db.ref("calls").push({from:me,to:u,status:"ring"});
+}
+function listenCalls(){
+ db.ref("calls").on("child_added",s=>{
+  let c=s.val();
+  if(c.to===me && c.status==="ring"){
+   if(confirm("Call from "+c.from)){
+    db.ref("calls/"+s.key+"/status").set("accept");
+   }else db.ref("calls/"+s.key+"/status").set("decline");
+  }
+ });
+}
+
+/* PROFILE IMAGE */
+function uploadPic(file){
+ st.ref("profiles/"+me).put(file).then(r=>r.ref.getDownloadURL()
+ .then(url=>db.ref("profiles/"+me).set(url)));
+}
 </script>
+
 </body>
 </html>
