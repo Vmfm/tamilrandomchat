@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
-<title>Tamil Chat – Voice Call</title>
+<title>Tamil Chat – Full</title>
 <style>
 :root {--muted:#aaa}
 body{margin:0;font-family:Arial;background:#0b141a;color:#fff}
@@ -29,6 +29,9 @@ background:#000c;padding:10px 14px;border-radius:20px;display:none;gap:8px;align
 .toggleBtn{width:40px;height:20px;background:#555;border-radius:10px;position:relative;cursor:pointer}
 .toggleKnob{width:18px;height:18px;background:#fff;border-radius:50%;position:absolute;top:1px;left:1px;transition:0.2s}
 .toggleBtn.on .toggleKnob{left:21px;background:#25d366}
+.msg.typing{font-style:italic;font-size:12px;background:#444}
+.reportBtn{cursor:pointer;color:red;font-size:12px;margin-left:6px}
+.blocked{opacity:0.5;pointer-events:none}
 </style>
 </head>
 <body>
@@ -52,22 +55,19 @@ background:#000c;padding:10px 14px;border-radius:20px;display:none;gap:8px;align
 <div id="top">
   <b>Tamil Group Chat</b>
   <div id="notifWrap">
-    <!-- Bell badge -->
     <div class="bell" id="bellBtn" title="Private messages">🔔
       <div class="badge" id="bellBadge" style="display:none">0</div>
     </div>
-
-    <!-- Settings -->
     <div id="settingsWrap">
       <button id="settingsBtn">⚙️</button>
       <div id="settingsPanel" role="dialog" aria-label="Settings">
         <div class="settingRow">
           <div>Audio Call</div>
-          <div class="toggleBtn on" id="toggleCall"><div class="toggleKnob" id="toggleCallKnob"></div></div>
+          <div class="toggleBtn on" id="toggleCall"><div class="toggleKnob"></div></div>
         </div>
         <div class="settingRow">
           <div>Private Chat</div>
-          <div class="toggleBtn on" id="togglePrivate"><div class="toggleKnob" id="togglePrivateKnob"></div></div>
+          <div class="toggleBtn on" id="togglePrivate"><div class="toggleKnob"></div></div>
         </div>
         <div class="settingRow">
           <div>Profile Image</div>
@@ -114,13 +114,11 @@ background:#000c;padding:10px 14px;border-radius:20px;display:none;gap:8px;align
 
 <audio id="remoteAudio" autoplay playsinline></audio>
 
-<!-- Firebase -->
 <script src="https://www.gstatic.com/firebasejs/8.10.0/firebase-app.js"></script>
 <script src="https://www.gstatic.com/firebasejs/8.10.0/firebase-database.js"></script>
 <script src="https://www.gstatic.com/firebasejs/8.10.0/firebase-storage.js"></script>
 
 <script>
-/* ================= FIREBASE CONFIG ================= */
 firebase.initializeApp({
   apiKey: "AIzaSyB1VbLbqBxCiG_bfGoQgQyapXwHUQ-Q7BU",
   authDomain: "tamil-chat-2d54e.firebaseapp.com",
@@ -130,45 +128,26 @@ firebase.initializeApp({
   messagingSenderId: "804705969240",
   appId: "1:804705969240:web:658df281dd8360843c162d"
 });
-const db = firebase.database();
-const storage = firebase.storage();
+const db=firebase.database(),storage=firebase.storage();
+let me=localStorage.name||"",withUser="",callId="",pc,localStream,muted=false,speaker=true,timer,enableCall=true,enablePrivate=true,unread=0;
+let blockedUsers = [],reports = {};
 
-/* ================= STATE ================= */
-let me = localStorage.name || "";
-let withUser = "";
-let callId = "";
-let pc, localStream;
-let muted=false, speaker=true, timer;
-let enableCall=true, enablePrivate=true;
-let unread = 0;
+/* ===== LOGIN ===== */
+if(me)login.style.display="none",init();
+function join(){me=name.value.trim();if(!me)return;localStorage.name=me;login.style.display="none";init();}
 
-/* ================= LOGIN ================= */
-if(me){login.style.display="none";init();}
-function join(){
-  me=name.value.trim(); if(!me)return;
-  localStorage.name=me;
-  login.style.display="none";
-  init();
-}
-
-/* ================= INIT ================= */
+/* ===== INIT ===== */
 function init(){
   db.ref("presence/"+me).set(true);
   db.ref("presence/"+me).onDisconnect().remove();
-  listenGroup();
-  listenCalls();
+  listenGroup();listenCalls();listenPrivate();listenTyping();
 }
 
-/* ================= GROUP CHAT ================= */
+/* ===== GROUP CHAT ===== */
 function listenGroup(){
   db.ref("group").limitToLast(100).on("child_added",s=>{
     let m=s.val();
-    let d=document.createElement("div");
-    d.className="msg"+(m.name===me?" self":"");
-    d.textContent=m.name+": "+m.text;
-    d.onclick=()=>openPrivate(m.name);
-    chat.appendChild(d);
-    chat.scrollTop=99999;
+    addMsg(chat,m.name,m.text,m.typing);
   });
 }
 function send(){
@@ -177,78 +156,73 @@ function send(){
   msg.value="";
 }
 
-/* ================= PRIVATE CHAT + UNREAD ================= */
+/* ===== PRIVATE CHAT ===== */
 function openPrivate(u){
-  if(u===me || !enablePrivate)return;
-  withUser=u;
-  ptitle.textContent="Chat with "+u;
-  pchat.innerHTML="";
-  private.style.display="flex";
-  unread=0; updateBadge();
-  db.ref("private/"+[me,u].sort().join("_"))
-    .limitToLast(100)
-    .on("child_added",s=>{
-      let m=s.val();
-      let d=document.createElement("div");
-      d.className="msg"+(m.name===me?" self":"");
-      d.textContent=m.text;
-      pchat.appendChild(d);
-      pchat.scrollTop=99999;
-    });
+  if(u===me||!enablePrivate||blockedUsers.includes(u))return;
+  withUser=u;ptitle.textContent="Chat with "+u;pchat.innerHTML="";private.style.display="flex";unread=0;updateBadge();
+  db.ref("private/"+[me,u].sort().join("_")).limitToLast(100).on("child_added",s=>{
+    let m=s.val();addMsg(pchat,m.name,m.text);
+  });
 }
 function closePrivate(){private.style.display="none";}
 function sendPrivate(){
-  if(!pmsg.value || !enablePrivate)return;
-  db.ref("private/"+[me,withUser].sort().join("_"))
-    .push({name:me,text:pmsg.value,time:Date.now()});
+  if(!pmsg.value||!enablePrivate)return;
+  db.ref("private/"+[me,withUser].sort().join("_")).push({name:me,text:pmsg.value,time:Date.now()});
   pmsg.value="";
 }
-db.ref("private").on("child_added",s=>{
-  let key=s.key;
-  if(key.includes(me)){
-    s.ref.limitToLast(1).once("child_added").then(c=>{
-      let msg=c.val();
-      if(msg.name!==me){unread++; updateBadge();}
+
+/* ===== UNREAD BADGE ===== */
+function listenPrivate(){
+  db.ref("private").on("child_added",s=>{
+    let key=s.key;
+    if(key.includes(me)){
+      s.ref.limitToLast(1).once("child_added").then(c=>{
+        let msg=c.val();if(msg.name!==me){unread++;updateBadge();}
+      });
+    }
+  });
+}
+function updateBadge(){bellBadge.style.display=unread>0?"flex":"none";bellBadge.textContent=unread;}
+
+/* ===== TYPING ===== */
+msg.oninput=()=>db.ref("typing/group/"+me).set(msg.value?"typing":"");
+pmsg?.addEventListener("input",()=>db.ref("typing/private/"+[me,withUser].sort().join("_")).set(pmsg.value?"typing":""));
+function listenTyping(){
+  db.ref("typing/group").on("value",s=>{
+    chat.querySelectorAll(".typing").forEach(e=>e.remove());
+    s.forEach(u=>{
+      if(u.key!==me&&u.val()==="typing"){
+        let d=document.createElement("div");d.className="msg typing";d.textContent=u.key+" is typing...";chat.appendChild(d);chat.scrollTop=99999;
+      }
     });
-  }
-});
-function updateBadge(){
-  bellBadge.style.display=unread>0?"flex":"none";
-  bellBadge.textContent=unread;
+  });
 }
 
-/* ================= SETTINGS ================= */
+/* ===== SETTINGS ===== */
 settingsBtn.onclick=()=>settingsPanel.style.display=(settingsPanel.style.display==="flex"?"none":"flex");
-toggleCall.onclick=()=>{
-  enableCall= !enableCall;
-  toggleCall.classList.toggle("on");
-}
-togglePrivate.onclick=()=>{
-  enablePrivate= !enablePrivate;
-  togglePrivate.classList.toggle("on");
-}
-/* ================= PROFILE IMAGE UPLOAD ================= */
+toggleCall.onclick=()=>{enableCall=!enableCall;toggleCall.classList.toggle("on");};
+togglePrivate.onclick=()=>{enablePrivate=!enablePrivate;togglePrivate.classList.toggle("on");};
+
+/* ===== PROFILE IMAGE ===== */
 profileImgInput.onchange=e=>{
   const file=e.target.files[0];
   if(!file)return;
-  const ref=storage.ref("profiles/"+me);
-  ref.put(file).then(()=>console.log("Profile uploaded"));
+  storage.ref("profiles/"+me).put(file).then(()=>console.log("Profile uploaded"));
 }
 
-/* ================= CALL SIGNALING ================= */
-function startCall(){
-  if(!enableCall)return;
+/* ===== BLOCK/REPORT ===== */
+function blockUser(u){blockedUsers.push(u);alert(u+" blocked");}
+function reportUser(u){reports[u]=(reports[u]||0)+1;if(reports[u]>=3){blockedUsers.push(u);alert(u+" auto-banned");}}
+
+/* ===== CALL SIGNALING ===== */
+function startCall(){if(!enableCall||!withUser)return;
   callId=[me,withUser].sort().join("_")+"_"+Date.now();
   db.ref("calls/"+callId).set({from:me,to:withUser,status:"ringing"});
 }
 function listenCalls(){
   db.ref("calls").on("child_added",s=>{
     let c=s.val();
-    if(c.to===me && c.status==="ringing" && enableCall){
-      callId=s.key;
-      callFrom.textContent="Call from "+c.from;
-      incoming.style.display="flex";
-    }
+    if(c.to===me&&c.status==="ringing"&&enableCall){callId=s.key;callFrom.textContent="Call from "+c.from;incoming.style.display="flex";}
   });
   db.ref("calls").on("child_changed",s=>{
     let c=s.val();
@@ -256,76 +230,33 @@ function listenCalls(){
     if(c.status==="ended")stopCall();
   });
 }
-function acceptCall(){
-  db.ref("calls/"+callId+"/status").set("answered");
-  incoming.style.display="none";
-}
-function declineCall(){
-  db.ref("calls/"+callId+"/status").set("ended");
-  incoming.style.display="none";
-}
+function acceptCall(){db.ref("calls/"+callId+"/status").set("answered");incoming.style.display="none";}
+function declineCall(){db.ref("calls/"+callId+"/status").set("ended");incoming.style.display="none");}
 
-/* ================= WEBRTC REAL AUDIO ================= */
+/* ===== WEBRTC ===== */
 async function startWebRTC(isCaller){
   localStream=await navigator.mediaDevices.getUserMedia({audio:true});
   pc=new RTCPeerConnection({iceServers:[{urls:"stun:stun.l.google.com:19302"}]});
   localStream.getTracks().forEach(t=>pc.addTrack(t,localStream));
   pc.ontrack=e=>remoteAudio.srcObject=e.streams[0];
-  pc.onicecandidate=e=>{
-    if(e.candidate)
-      db.ref("calls/"+callId+"/ice").push(JSON.stringify(e.candidate));
-  };
-  db.ref("calls/"+callId+"/ice").on("child_added",s=>{
-    pc.addIceCandidate(new RTCIceCandidate(JSON.parse(s.val()))).catch(()=>{});
-  });
-
-  if(isCaller){
-    let o=await pc.createOffer();
-    await pc.setLocalDescription(o);
-    db.ref("calls/"+callId+"/offer").set(JSON.stringify(o));
-  }else{
-    db.ref("calls/"+callId+"/offer").once("value").then(async s=>{
-      await pc.setRemoteDescription(JSON.parse(s.val()));
-      let a=await pc.createAnswer();
-      await pc.setLocalDescription(a);
-      db.ref("calls/"+callId+"/answer").set(JSON.stringify(a));
-    });
-  }
-  db.ref("calls/"+callId+"/answer").on("value",s=>{
-    if(s.val() && !pc.currentRemoteDescription)
-      pc.setRemoteDescription(JSON.parse(s.val())).catch(()=>{});
-  });
+  pc.onicecandidate=e=>{if(e.candidate)db.ref("calls/"+callId+"/ice").push(JSON.stringify(e.candidate));};
+  db.ref("calls/"+callId+"/ice").on("child_added",s=>{pc.addIceCandidate(new RTCIceCandidate(JSON.parse(s.val()))).catch(()=>{});});
+  if(isCaller){let o=await pc.createOffer();await pc.setLocalDescription(o);db.ref("calls/"+callId+"/offer").set(JSON.stringify(o));}
+  else{db.ref("calls/"+callId+"/offer").once("value").then(async s=>{await pc.setRemoteDescription(JSON.parse(s.val()));let a=await pc.createAnswer();await pc.setLocalDescription(a);db.ref("calls/"+callId+"/answer").set(JSON.stringify(a));});}
+  db.ref("calls/"+callId+"/answer").on("value",s=>{if(s.val()&&!pc.currentRemoteDescription)pc.setRemoteDescription(JSON.parse(s.val())).catch(()=>{});});
   startCallUI();
 }
 
-/* ================= CALL UI ================= */
-function startCallUI(){
-  callBar.style.display="flex";
-  callWith.textContent=withUser;
-  let start=Date.now();
-  timer=setInterval(()=>{
-    let d=Date.now()-start;
-    callTime.textContent=
-      String(Math.floor(d/60000)).padStart(2,"0")+":"+
-      String(Math.floor(d%60000/1000)).padStart(2,"0");
-  },1000);
-}
-function toggleMute(){
-  muted=!muted;
-  localStream.getAudioTracks()[0].enabled=!muted;
-}
-function toggleSpeaker(){
-  speaker=!speaker;
-  remoteAudio.muted=!speaker;
-}
-function endCall(){
-  db.ref("calls/"+callId+"/status").set("ended");
-}
-function stopCall(){
-  if(pc)pc.close();
-  if(localStream)localStream.getTracks().forEach(t=>t.stop());
-  clearInterval(timer);
-  callBar.style.display="none";
+/* ===== CALL UI ===== */
+function startCallUI(){callBar.style.display="flex";callWith.textContent=withUser;let start=Date.now();timer=setInterval(()=>{let d=Date.now()-start;callTime.textContent=String(Math.floor(d/60000)).padStart(2,"0")+":"+String(Math.floor(d%60000/1000)).padStart(2,"0");},1000);}
+function toggleMute(){muted=!muted;localStream.getAudioTracks()[0].enabled=!muted;}
+function toggleSpeaker(){speaker=!speaker;remoteAudio.muted=!speaker;}
+function endCall(){db.ref("calls/"+callId+"/status").set("ended");}
+function stopCall(){if(pc)pc.close();if(localStream)localStream.getTracks().forEach(t=>t.stop());clearInterval(timer);callBar.style.display="none";}
+
+/* ===== HELPERS ===== */
+function addMsg(container,name,text,typing=false){
+  let d=document.createElement("div");d.className="msg"+(name===me?" self":"");d.textContent=text?name+": "+text:name+" is typing...";container.appendChild(d);container.scrollTop=99999;
 }
 </script>
 </body>
