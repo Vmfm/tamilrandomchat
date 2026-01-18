@@ -2,7 +2,7 @@
 <html>
 <head>
 <meta charset="utf-8">
-<title>Tamil VM Random Video</title>
+<title>Tamil VM – Random Video Chat</title>
 <meta name="viewport" content="width=device-width,initial-scale=1">
 
 <style>
@@ -18,14 +18,20 @@ button{padding:10px 14px;margin:4px;border:none;border-radius:6px;font-size:15px
 #hangBtn{background:#ef4444}
 #muteBtn{background:#f59e0b}
 #camBtn{background:#8b5cf6}
+
 .overlay{position:fixed;inset:0;background:rgba(0,0,0,.75);display:flex;align-items:center;justify-content:center;z-index:10}
 .card{background:#1f2937;padding:20px;border-radius:10px;width:280px}
 input,select{width:100%;padding:9px;margin:6px 0;border-radius:6px;border:none}
-#partnerBox{position:absolute;top:15px;left:15px;background:rgba(0,0,0,.6);padding:10px;border-radius:8px;font-size:14px}
+
+#partnerBox{
+ position:absolute;top:15px;left:15px;
+ background:rgba(0,0,0,.6);
+ padding:10px;border-radius:8px;
+ font-size:14px
+}
 .hidden{display:none}
 </style>
 
-<!-- Firebase -->
 <script src="https://www.gstatic.com/firebasejs/9.22.2/firebase-app-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/9.22.2/firebase-database-compat.js"></script>
 </head>
@@ -66,39 +72,39 @@ input,select{width:100%;padding:9px;margin:6px 0;border-radius:6px;border:none}
 </div>
 
 <script>
-/* 🔥 Firebase config (YOURS) */
+/* 🔥 Firebase (YOUR PROJECT) */
 firebase.initializeApp({
-  apiKey:"AIzaSyAlWP5D79PsX29H0hIZlfvL0YV5Us7v5I4",
-  authDomain:"sample-firebase-ai-app-1f408.firebaseapp.com",
-  databaseURL:"https://sample-firebase-ai-app-1f408-default-rtdb.asia-southeast1.firebasedatabase.app",
-  projectId:"sample-firebase-ai-app-1f408"
+  apiKey: "AIzaSyAlWP5D79PsX29H0hIZlfvL0YV5Us7v5I4",
+  authDomain: "sample-firebase-ai-app-1f408.firebaseapp.com",
+  databaseURL: "https://sample-firebase-ai-app-1f408-default-rtdb.asia-southeast1.firebasedatabase.app",
+  projectId: "sample-firebase-ai-app-1f408"
 });
 const db = firebase.database();
 
 /* GLOBALS */
 const clientId = "c_" + Math.random().toString(36).substr(2,8);
+let localStream = null;
 let userData = {};
-let localStream, pc;
+let queueKey = null;
 
 /* UI */
 const loginOverlay = document.getElementById("loginOverlay");
 const partnerBox = document.getElementById("partnerBox");
 const statusEl = document.getElementById("status");
 
-/* LOGIN – FIXED & WORKING */
+/* LOGIN (FIXED & SAFE) */
 document.getElementById("loginBtn").onclick = () => {
-  const n = document.getElementById("loginName").value.trim();
-  const a = document.getElementById("loginAge").value.trim();
-  const g = document.getElementById("loginGender").value;
+  const name = document.getElementById("loginName").value.trim();
+  const age = document.getElementById("loginAge").value.trim();
+  const gender = document.getElementById("loginGender").value;
 
-  if(!n || !a || !g){
-    alert("Please fill all fields");
+  if (!name || !age || !gender) {
+    alert("Please fill all details");
     return;
   }
 
-  userData = { name:n, age:a, gender:g };
-  db.ref("users/"+clientId).set(userData);
-
+  userData = { name, age, gender };
+  db.ref("users/" + clientId).set(userData);
   loginOverlay.classList.add("hidden");
 };
 
@@ -109,39 +115,53 @@ async function getMedia(){
   document.getElementById("localVideo").srcObject = localStream;
 }
 
-/* FIND PARTNER (demo pairing) */
+/* FIND PARTNER */
 document.getElementById("startBtn").onclick = async () => {
   await getMedia();
   statusEl.textContent = "Searching...";
-  findDummyPartner();
+  enterQueue();
 };
 
-/* DEMO PARTNER SHOW (same logic as real pair) */
-function findDummyPartner(){
-  setTimeout(()=>{
-    db.ref("users").limitToFirst(1).once("value",snap=>{
-      snap.forEach(s=>{
-        if(s.key !== clientId){
-          showPartner(s.val());
-        }
-      });
+function enterQueue(){
+  const ref = db.ref("queue").push({
+    id: clientId,
+    ts: Date.now()
+  });
+  queueKey = ref.key;
+  ref.onDisconnect().remove();
+
+  db.ref("queue").once("value", snap => {
+    snap.forEach(s => {
+      if (s.key !== queueKey) {
+        pairWith(s.key, s.val().id);
+      }
     });
-  },2000);
+  });
 }
 
-/* SHOW PARTNER DETAILS – 10 SECONDS */
+function pairWith(otherKey, otherId){
+  db.ref("queue/"+otherKey).remove();
+  db.ref("queue/"+queueKey).remove();
+
+  db.ref("users/"+otherId).once("value").then(snap=>{
+    if(!snap.exists()) return;
+    showPartner(snap.val());
+  });
+}
+
+/* SHOW PARTNER DETAILS FOR 10 SECONDS */
 function showPartner(data){
   partnerBox.innerHTML =
-    "👤 "+data.name+"<br>"+
-    "🎂 "+data.age+"<br>"+
-    "⚧ "+data.gender;
+    "👤 " + data.name + "<br>" +
+    "🎂 " + data.age + "<br>" +
+    "⚧ " + data.gender;
 
   partnerBox.classList.remove("hidden");
   statusEl.textContent = "Connected";
 
-  setTimeout(()=>{
+  setTimeout(() => {
     partnerBox.classList.add("hidden");
-  },10000);
+  }, 10000);
 }
 </script>
 
