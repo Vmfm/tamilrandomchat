@@ -1,267 +1,152 @@
-<!DOCTYPE html>
-<html lang="en">
+<!doctype html>
+<html>
 <head>
-<meta charset="UTF-8">
-<title>TAMIL VM LIVE TV</title>
-<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1">
-
-<link href="https://unpkg.com/video.js/dist/video-js.css" rel="stylesheet">
-<link rel="stylesheet" href="https://maxcdn.bootstrapcdn.com/bootstrap/4.5.2/css/bootstrap.min.css">
-
-<script src="https://unpkg.com/video.js/dist/video.js"></script>
-<script src="https://ajax.googleapis.com/ajax/libs/jquery/3.5.1/jquery.min.js"></script>
+<meta charset="utf-8"/>
+<title>Random Video Chat - Tamil VM</title>
+<meta name="viewport" content="width=device-width,initial-scale=1"/>
 
 <style>
-:root{
- --bg:#0b0b0b;
- --card:#141414;
- --text:#fff;
- --border:#2a2a2a;
- --accent:#ff9800;
-}
-body.light{
- --bg:#f2f2f2;
- --card:#ffffff;
- --text:#000;
- --border:#ddd;
-}
-
-body{
- background:var(--bg);
- color:var(--text);
- margin:0;
- font-family:system-ui,-apple-system,Segoe UI,sans-serif;
-}
-
-/* LOADER */
-#loader{
- position:fixed;
- inset:0;
- background:#000;
- display:flex;
- align-items:center;
- justify-content:center;
- z-index:99999;
-}
-#loader img{width:110px}
-
-/* HEADER + PLAYER */
-.header{
- background:#000;
- position:sticky;
- top:0;
- z-index:999;
-}
-
-/* 🔥 FULL COVER PLAYER FIX */
-.video-js{
- width:100%;
- height:60vh;
- min-height:230px;
- max-height:75vh;
- border-radius:12px;
- overflow:hidden;
-}
-
-/* FORCE VIDEO FULL COVER (ANDROID + WEB) */
-.video-js video,
-.vjs-tech{
- width:100% !important;
- height:100% !important;
- object-fit:cover !important;
-}
-
-/* APK BUTTON */
-.apk-btn{
- position:fixed;
- top:12px;
- left:12px;
- z-index:10000;
- background:#00e676;
- color:#000;
- padding:6px 14px;
- border-radius:20px;
- font-size:12px;
- font-weight:700;
- text-decoration:none;
- box-shadow:0 4px 12px rgba(0,0,0,.4);
-}
-
-/* THEME TOGGLE */
-.toggle-btn{
- position:fixed;
- top:12px;
- right:12px;
- z-index:10000;
- background:var(--accent);
- border:none;
- color:#000;
- padding:6px 14px;
- border-radius:20px;
- font-size:12px;
- box-shadow:0 4px 12px rgba(0,0,0,.4);
-}
-
-/* SEARCH + CATEGORY */
-.controls{
- padding:10px;
- display:flex;
- gap:8px;
-}
-.controls input,
-.controls select{
- flex:1;
- background:var(--card);
- color:var(--text);
- border:1px solid var(--border);
- border-radius:10px;
- padding:8px 10px;
- font-size:14px;
-}
-
-/* CHANNEL LIST */
-.container{
- max-height:calc(100vh - 320px);
- overflow-y:auto;
- padding-bottom:30px;
-}
-
-/* CHANNEL CARD */
-.channel{
- background:var(--card);
- border:1px solid var(--border);
- border-radius:14px;
- padding:6px;
- margin-bottom:12px;
- cursor:pointer;
- transition:.25s;
-}
-.channel:hover{
- transform:scale(1.04);
- border-color:var(--accent);
-}
-.channel img{
- width:100%;
- height:120px;
- object-fit:contain;
- border-radius:10px;
- background:#000;
-}
-.channel p{
- margin:6px 0 2px;
- font-size:12px;
- font-weight:600;
- text-align:center;
-}
-.views{
- font-size:10px;
- color:var(--accent);
- text-align:center;
-}
-
-/* SCROLL BAR */
-::-webkit-scrollbar{width:6px}
-::-webkit-scrollbar-thumb{
- background:var(--border);
- border-radius:10px;
-}
+body{font-family:sans-serif;background:#111;color:#eee;margin:0}
+#videoContainer{position:relative;height:70vh;background:#000}
+video{width:100%;height:100%;object-fit:cover}
+#localVideo{position:absolute;top:10px;right:10px;width:160px;height:120px;border:2px solid #fff;border-radius:8px;z-index:2}
+.overlay{position:absolute;inset:0;background:rgba(0,0,0,.7);display:flex;align-items:center;justify-content:center;z-index:5}
+.card{background:#1f2933;padding:20px;border-radius:10px;width:280px;text-align:center}
+input,select{width:100%;padding:8px;margin:6px 0;border-radius:6px;border:none}
+button{padding:10px 15px;margin:5px;border:none;border-radius:6px;font-size:15px;color:#fff;cursor:pointer}
+#startBtn{background:#2563eb}
+#nextBtn{background:#10b981}
+#hangBtn{background:#ef4444}
+#muteBtn{background:#f59e0b}
+#camBtn{background:#8b5cf6}
+.hidden{display:none}
+.controls{text-align:center;margin:10px}
+#partnerInfo{position:absolute;top:15px;left:15px;background:rgba(0,0,0,.6);padding:10px;border-radius:8px;font-size:14px}
 </style>
+
+<script src="https://www.gstatic.com/firebasejs/9.22.2/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/9.22.2/firebase-database-compat.js"></script>
 </head>
 
 <body>
 
-<div id="loader">
- <img src="https://vmfm.github.io/tamilvmtv/image/loading-loader.gif">
+<h2 style="text-align:center">🔥 Random Video - Tamil VM</h2>
+
+<!-- LOGIN -->
+<div id="loginOverlay" class="overlay">
+  <div class="card">
+    <h3>Enter Details</h3>
+    <input id="name" placeholder="Name">
+    <input id="age" type="number" placeholder="Age">
+    <select id="gender">
+      <option value="">Gender</option>
+      <option>Male</option>
+      <option>Female</option>
+      <option>Other</option>
+    </select>
+    <button id="loginBtn" style="background:#2563eb;width:100%">Continue</button>
+  </div>
 </div>
 
-<a class="apk-btn" href="https://shareallfiles.net/P29GL8" target="_blank">
-⬇ Android App
-</a>
+<div id="videoContainer">
+  <video id="remoteVideo" autoplay playsinline></video>
+  <video id="localVideo" autoplay muted playsinline></video>
 
-<button class="toggle-btn" onclick="toggleTheme()">🌙 / ☀️</button>
-
-<div class="header">
- <video id="tvPlayer" class="video-js vjs-default-skin"
-  controls autoplay muted
-  playsinline webkit-playsinline x5-playsinline></video>
+  <!-- Partner info -->
+  <div id="partnerInfo" class="hidden"></div>
 </div>
 
-<div class="container mt-2">
- <div class="controls">
-  <input type="text" id="search" placeholder="🔍 Search Channel">
-  <select id="category"><option value="all">All</option></select>
- </div>
- <div class="row" id="channelList"></div>
+<div class="controls">
+  <button id="startBtn">Find Partner</button>
+  <button id="nextBtn" disabled>Next</button>
+  <button id="hangBtn" disabled>Hang Up</button>
+  <button id="muteBtn" disabled>Mute</button>
+  <button id="camBtn" disabled>Camera Off</button>
+  <div id="status">Idle</div>
 </div>
 
 <script>
-const M3U_URL="https://vmfm.github.io/tamilvmtv/live/channels.m3u";
-const player=videojs('tvPlayer',{
- fluid:false,
- responsive:true
+(async()=>{
+/* 🔥 Firebase config (same as yours) */
+firebase.initializeApp({
+ apiKey:"AIzaSyAlWP5D79PsX29H0hIZlfvL0YV5Us7v5I4",
+ authDomain:"sample-firebase-ai-app-1f408.firebaseapp.com",
+ databaseURL:"https://sample-firebase-ai-app-1f408-default-rtdb.asia-southeast1.firebasedatabase.app",
+ projectId:"sample-firebase-ai-app-1f408",
 });
+const db=firebase.database();
 
-let allChannels=[],views=JSON.parse(localStorage.getItem('views')||'{}');
+/* UI */
+const loginOverlay=document.getElementById('loginOverlay');
+const partnerInfo=document.getElementById('partnerInfo');
+const statusEl=document.getElementById('status');
 
-if(localStorage.getItem('theme')==='light')
- document.body.classList.add('light');
+/* USER */
+const clientId='c_'+Math.random().toString(36).substr(2,8);
+let userData={};
 
-function toggleTheme(){
- document.body.classList.toggle('light');
- localStorage.setItem('theme',
- document.body.classList.contains('light')?'light':'dark');
+/* LOGIN */
+loginBtn.onclick=()=>{
+ userData={
+  name:name.value.trim(),
+  age:age.value,
+  gender:gender.value
+ };
+ if(!userData.name||!userData.age||!userData.gender) return alert("Fill all");
+ db.ref('users/'+clientId).set(userData);
+ loginOverlay.classList.add('hidden');
+};
+
+/* WEBRTC (same logic, simplified) */
+let pc,localStream,callId,queueKey,isInitiator;
+
+async function getStream(){
+ if(localStream)return localStream;
+ localStream=await navigator.mediaDevices.getUserMedia({video:true,audio:true});
+ localVideo.srcObject=localStream;
 }
 
-fetch(M3U_URL).then(r=>r.text()).then(d=>{
- d.split('\n').forEach((l,i,a)=>{
-  if(l.startsWith('#EXTINF')){
-   allChannels.push({
-    name:l.split(',').pop().trim(),
-    logo:(l.match(/tvg-logo="(.*?)"/)||[])[1]||'https://via.placeholder.com/300x200?text=TV',
-    group:(l.match(/group-title="(.*?)"/)||[])[1]||'Other',
-    url:a[i+1]?.trim()
-   });
-  }
- });
- [...new Set(allChannels.map(c=>c.group))]
- .forEach(g=>$('#category').append(`<option>${g}</option>`));
- render();
- $('#loader').hide();
-});
+async function enterQueue(){
+ queueKey=db.ref('queue').push({id:clientId,ts:Date.now()}).key;
+ db.ref('queue/'+queueKey).onDisconnect().remove();
+ watchQueue();
+}
 
-function render(){
- const s=$('#search').val().toLowerCase();
- const c=$('#category').val();
- $('#channelList').html('');
- allChannels.filter(x=>(c==='all'||x.group===c)&&x.name.toLowerCase().includes(s))
- .forEach(x=>{
-  $('#channelList').append(`
-  <div class="col-4 col-md-2">
-   <div class="channel" data-src="${x.url}" data-name="${x.name}">
-    <img src="${x.logo}">
-    <p>${x.name}</p>
-    <div class="views">👁 ${(views[x.name]||0)}</div>
-   </div>
-  </div>`);
+function watchQueue(){
+ db.ref('queue').on('child_added',snap=>{
+  if(snap.key===queueKey)return;
+  const other=snap.val().id;
+  const ids=[other,clientId].sort();
+  callId="call_"+ids[0]+"_"+ids[1];
+  isInitiator=true;
+  db.ref('queue/'+snap.key).remove();
+  db.ref('queue/'+queueKey).remove();
+  startCall(other);
  });
 }
 
-$('#search,#category').on('input change',render);
+async function startCall(otherId){
+ await getStream();
+ pc=new RTCPeerConnection({iceServers:[{urls:"stun:stun.l.google.com:19302"}]});
+ localStream.getTracks().forEach(t=>pc.addTrack(t,localStream));
+ pc.ontrack=e=>remoteVideo.srcObject=e.streams[0];
 
-$(document).on('click','.channel',function(){
- const n=$(this).data('name');
- views[n]=(views[n]||0)+1;
- localStorage.setItem('views',JSON.stringify(views));
-
- player.src({
-  src:$(this).data('src'),
-  type:'application/x-mpegURL'
+ /* SHOW PARTNER INFO */
+ db.ref('users/'+otherId).once('value').then(s=>{
+  const d=s.val();
+  partnerInfo.innerHTML=`👤 ${d.name}<br>🎂 ${d.age}<br>⚧ ${d.gender}`;
+  partnerInfo.classList.remove('hidden');
+  setTimeout(()=>partnerInfo.classList.add('hidden'),10000);
  });
- player.play();
- render();
- window.scrollTo({top:0,behavior:'smooth'});
-});
+
+ statusEl.textContent="Connected";
+}
+
+/* BUTTONS */
+startBtn.onclick=()=>getStream().then(enterQueue);
+hangBtn.onclick=()=>location.reload();
+
+})();
 </script>
-
 </body>
 </html>
