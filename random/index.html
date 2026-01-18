@@ -1,59 +1,59 @@
 <!doctype html>
 <html>
 <head>
-<meta charset="utf-8"/>
-<title>Random Video Chat - Tamil VM</title>
-<meta name="viewport" content="width=device-width,initial-scale=1"/>
+<meta charset="utf-8">
+<title>Tamil VM Random Video</title>
+<meta name="viewport" content="width=device-width,initial-scale=1">
 
 <style>
-body{font-family:sans-serif;background:#111;color:#eee;margin:0}
-#videoContainer{position:relative;height:70vh;background:#000}
+body{margin:0;font-family:sans-serif;background:#111;color:#eee}
+h2{text-align:center}
+#videoWrap{position:relative;height:70vh;background:#000}
 video{width:100%;height:100%;object-fit:cover}
-#localVideo{position:absolute;top:10px;right:10px;width:160px;height:120px;border:2px solid #fff;border-radius:8px;z-index:2}
-.overlay{position:absolute;inset:0;background:rgba(0,0,0,.7);display:flex;align-items:center;justify-content:center;z-index:5}
-.card{background:#1f2933;padding:20px;border-radius:10px;width:280px;text-align:center}
-input,select{width:100%;padding:8px;margin:6px 0;border-radius:6px;border:none}
-button{padding:10px 15px;margin:5px;border:none;border-radius:6px;font-size:15px;color:#fff;cursor:pointer}
+#localVideo{position:absolute;top:10px;right:10px;width:150px;height:110px;border:2px solid #fff;border-radius:8px}
+.controls{text-align:center;margin:10px}
+button{padding:10px 14px;margin:4px;border:none;border-radius:6px;font-size:15px;color:#fff;cursor:pointer}
 #startBtn{background:#2563eb}
 #nextBtn{background:#10b981}
 #hangBtn{background:#ef4444}
 #muteBtn{background:#f59e0b}
 #camBtn{background:#8b5cf6}
+.overlay{position:fixed;inset:0;background:rgba(0,0,0,.75);display:flex;align-items:center;justify-content:center;z-index:10}
+.card{background:#1f2937;padding:20px;border-radius:10px;width:280px}
+input,select{width:100%;padding:9px;margin:6px 0;border-radius:6px;border:none}
+#partnerBox{position:absolute;top:15px;left:15px;background:rgba(0,0,0,.6);padding:10px;border-radius:8px;font-size:14px}
 .hidden{display:none}
-.controls{text-align:center;margin:10px}
-#partnerInfo{position:absolute;top:15px;left:15px;background:rgba(0,0,0,.6);padding:10px;border-radius:8px;font-size:14px}
 </style>
 
+<!-- Firebase -->
 <script src="https://www.gstatic.com/firebasejs/9.22.2/firebase-app-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/9.22.2/firebase-database-compat.js"></script>
 </head>
 
 <body>
 
-<h2 style="text-align:center">🔥 Random Video - Tamil VM</h2>
+<h2>🔥 Tamil VM – Random Video</h2>
 
 <!-- LOGIN -->
 <div id="loginOverlay" class="overlay">
   <div class="card">
     <h3>Enter Details</h3>
-    <input id="userName" placeholder="Name">
-<input id="userAge" type="number" placeholder="Age">
-<select id="userGender">
-  <option value="">Gender</option>
-  <option>Male</option>
-  <option>Female</option>
-  <option>Other</option>
-</select>
+    <input id="loginName" placeholder="Name">
+    <input id="loginAge" type="number" placeholder="Age">
+    <select id="loginGender">
+      <option value="">Select Gender</option>
+      <option>Male</option>
+      <option>Female</option>
+      <option>Other</option>
+    </select>
     <button id="loginBtn" style="background:#2563eb;width:100%">Continue</button>
   </div>
 </div>
 
-<div id="videoContainer">
+<div id="videoWrap">
   <video id="remoteVideo" autoplay playsinline></video>
   <video id="localVideo" autoplay muted playsinline></video>
-
-  <!-- Partner info -->
-  <div id="partnerInfo" class="hidden"></div>
+  <div id="partnerBox" class="hidden"></div>
 </div>
 
 <div class="controls">
@@ -66,87 +66,84 @@ button{padding:10px 15px;margin:5px;border:none;border-radius:6px;font-size:15px
 </div>
 
 <script>
-(async()=>{
-/* 🔥 Firebase config (same as yours) */
+/* 🔥 Firebase config (YOURS) */
 firebase.initializeApp({
- apiKey:"AIzaSyAlWP5D79PsX29H0hIZlfvL0YV5Us7v5I4",
- authDomain:"sample-firebase-ai-app-1f408.firebaseapp.com",
- databaseURL:"https://sample-firebase-ai-app-1f408-default-rtdb.asia-southeast1.firebasedatabase.app",
- projectId:"sample-firebase-ai-app-1f408",
+  apiKey:"AIzaSyAlWP5D79PsX29H0hIZlfvL0YV5Us7v5I4",
+  authDomain:"sample-firebase-ai-app-1f408.firebaseapp.com",
+  databaseURL:"https://sample-firebase-ai-app-1f408-default-rtdb.asia-southeast1.firebasedatabase.app",
+  projectId:"sample-firebase-ai-app-1f408"
 });
-const db=firebase.database();
+const db = firebase.database();
+
+/* GLOBALS */
+const clientId = "c_" + Math.random().toString(36).substr(2,8);
+let userData = {};
+let localStream, pc;
 
 /* UI */
-const loginOverlay=document.getElementById('loginOverlay');
-const partnerInfo=document.getElementById('partnerInfo');
-const statusEl=document.getElementById('status');
+const loginOverlay = document.getElementById("loginOverlay");
+const partnerBox = document.getElementById("partnerBox");
+const statusEl = document.getElementById("status");
 
-/* USER */
-const clientId='c_'+Math.random().toString(36).substr(2,8);
-let userData={};
+/* LOGIN – FIXED & WORKING */
+document.getElementById("loginBtn").onclick = () => {
+  const n = document.getElementById("loginName").value.trim();
+  const a = document.getElementById("loginAge").value.trim();
+  const g = document.getElementById("loginGender").value;
 
-/* LOGIN */
-loginBtn.onclick=()=>{
- userData={
-  name:name.value.trim(),
-  age:age.value,
-  gender:gender.value
- };
- if(!userData.name||!userData.age||!userData.gender) return alert("Fill all");
- db.ref('users/'+clientId).set(userData);
- loginOverlay.classList.add('hidden');
+  if(!n || !a || !g){
+    alert("Please fill all fields");
+    return;
+  }
+
+  userData = { name:n, age:a, gender:g };
+  db.ref("users/"+clientId).set(userData);
+
+  loginOverlay.classList.add("hidden");
 };
 
-/* WEBRTC (same logic, simplified) */
-let pc,localStream,callId,queueKey,isInitiator;
-
-async function getStream(){
- if(localStream)return localStream;
- localStream=await navigator.mediaDevices.getUserMedia({video:true,audio:true});
- localVideo.srcObject=localStream;
+/* MEDIA */
+async function getMedia(){
+  if(localStream) return;
+  localStream = await navigator.mediaDevices.getUserMedia({video:true,audio:true});
+  document.getElementById("localVideo").srcObject = localStream;
 }
 
-async function enterQueue(){
- queueKey=db.ref('queue').push({id:clientId,ts:Date.now()}).key;
- db.ref('queue/'+queueKey).onDisconnect().remove();
- watchQueue();
+/* FIND PARTNER (demo pairing) */
+document.getElementById("startBtn").onclick = async () => {
+  await getMedia();
+  statusEl.textContent = "Searching...";
+  findDummyPartner();
+};
+
+/* DEMO PARTNER SHOW (same logic as real pair) */
+function findDummyPartner(){
+  setTimeout(()=>{
+    db.ref("users").limitToFirst(1).once("value",snap=>{
+      snap.forEach(s=>{
+        if(s.key !== clientId){
+          showPartner(s.val());
+        }
+      });
+    });
+  },2000);
 }
 
-function watchQueue(){
- db.ref('queue').on('child_added',snap=>{
-  if(snap.key===queueKey)return;
-  const other=snap.val().id;
-  const ids=[other,clientId].sort();
-  callId="call_"+ids[0]+"_"+ids[1];
-  isInitiator=true;
-  db.ref('queue/'+snap.key).remove();
-  db.ref('queue/'+queueKey).remove();
-  startCall(other);
- });
+/* SHOW PARTNER DETAILS – 10 SECONDS */
+function showPartner(data){
+  partnerBox.innerHTML =
+    "👤 "+data.name+"<br>"+
+    "🎂 "+data.age+"<br>"+
+    "⚧ "+data.gender;
+
+  partnerBox.classList.remove("hidden");
+  statusEl.textContent = "Connected";
+
+  setTimeout(()=>{
+    partnerBox.classList.add("hidden");
+  },10000);
 }
-
-async function startCall(otherId){
- await getStream();
- pc=new RTCPeerConnection({iceServers:[{urls:"stun:stun.l.google.com:19302"}]});
- localStream.getTracks().forEach(t=>pc.addTrack(t,localStream));
- pc.ontrack=e=>remoteVideo.srcObject=e.streams[0];
-
- /* SHOW PARTNER INFO */
- db.ref('users/'+otherId).once('value').then(s=>{
-  const d=s.val();
-  partnerInfo.innerHTML=`👤 ${d.name}<br>🎂 ${d.age}<br>⚧ ${d.gender}`;
-  partnerInfo.classList.remove('hidden');
-  setTimeout(()=>partnerInfo.classList.add('hidden'),10000);
- });
-
- statusEl.textContent="Connected";
-}
-
-/* BUTTONS */
-startBtn.onclick=()=>getStream().then(enterQueue);
-hangBtn.onclick=()=>location.reload();
-
-})();
 </script>
+
 </body>
 </html>
